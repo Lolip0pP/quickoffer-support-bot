@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: quickoffer-support-bot-db
+    environment:
+      POSTGRES_DB: support_bot
+      POSTGRES_USER: support_bot_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U support_bot_user -d support_bot
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - support-bot-network
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quickoffer-support-bot-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_APPROVAL_CHAT_ID: ${TELEGRAM_APPROVAL_CHAT_ID}
+      DATABASE_URL: postgresql+asyncpg://support_bot_user:${DB_PASSWORD:-secure_password_change_me}@postgres:5432/support_bot
+      DATABASE_ECHO: "false"
+      M2M_API_KEY: ${M2M_API_KEY}
+      FUCKHR_API_BASE_URL: ${FUCKHR_API_BASE_URL:-http://localhost:8001}
+      JOBS_API_BASE_URL: ${JOBS_API_BASE_URL:-http://localhost:8002}
+      LLM_PROVIDER_KEY: ${LLM_PROVIDER_KEY}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4-turbo}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: "false"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:8000/api/v1/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - support-bot-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  support-bot-network:
+    driver: bridge

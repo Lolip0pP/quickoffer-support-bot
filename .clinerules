@@ -1,0 +1,25 @@
+# Project Rules: QuickOffer Support Bot Service
+
+## Core Architectural Invariants
+1. **Strict LLM Isolation**: The LLM engine is strictly Read-Only. NEVER assign mutation tools, raw SQL execution, shell access, or production DB credentials to LLM agents.
+2. **Deterministic Flows (Mode A)**: Handled via state machines with strict Pydantic validation. High-risk mutations require approval tokens.
+3. **M2M Operations**: All backend state changes go through typed HTTP/gRPC clients to internal APIs (`fuckhr-api`, `jobs-api`) with mandatory `Idempotency-Key` and `Trace-ID` headers.
+4. **Data Frozen Snapshots**: All action approvals must hash parameters (`action_id`, `staff_id`, `payload_hash`). Any modification invalidates approval.
+
+## Tech Stack Guidelines
+- **Language**: Python 3.12+ (asyncio throughout).
+- **Frameworks**: `aiogram` (v3) for Telegram handling, `FastAPI` for internal webhooks/health checks, `SQLAlchemy` (AsyncORM with `asyncpg`) for bot database.
+- **Data Validation**: `pydantic` (v2) for all schemas and environment settings.
+- **Code Style & Formatting**: 
+  - Strictly adhere to **Black** formatting standards (line length: 88 characters, double quotes for strings).
+  - Use `isort` style for import sorting.
+  - Write concise, production-ready code with complete type annotations (`mypy` compliant).
+- **Execution Protocol for AI Agent**:
+  - Do not create placeholder comments like `# TODO: implement this later`.
+  - Always generate database migration files alongside models.
+
+## Execution Protocol for AI Agent
+- Write concise, production-ready code with complete type annotations.
+- Do not create placeholder comments like `# TODO: implement this later`.
+- Always generate database migration files alongside models.
+- After every change check if updates to README and README_RU are necessary.
