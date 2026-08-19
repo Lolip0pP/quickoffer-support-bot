@@ -762,6 +762,218 @@ INITIAL → GATHERING_INFO → ANALYZING → PROPOSING_SOLUTION
 
 ---
 
+## Полный список сервисов
+
+### 1. FSM Service (`src/services/fsm.py`)
+Finite State Machine для управления детерминированными потоками с проверкой переходов.
+
+```python
+from src.services.fsm import SupportFlowFSM
+
+fsm = SupportFlowFSM()
+can_proceed = fsm.can_transition(current_state, next_state)
+fsm.transition(current_state, next_state, context)
+allowed = fsm.get_allowed_transitions(current_state)
+```
+
+### 2. Identity Service (`src/services/identity.py`)
+Управление привязкой аккаунтов Telegram к QuickOffer.
+
+```python
+from src.services.identity import get_identity_service
+
+identity = get_identity_service()
+
+# Проверить привязку
+response = await identity.check_identity(telegram_id)
+
+# Создать одноразовую auth-ссылку
+auth_link = await identity.generate_auth_link(telegram_id, ttl_seconds=3600)
+
+# Проверить или создать ссылку
+result = await identity.check_and_bind_or_link(telegram_id)
+```
+
+### 3. Approval Service (`src/services/approval_service.py`)
+Управление высокорисковыми действиями с frozen параметрами и проверкой целостности.
+
+```python
+from src.services.approval_service import ApprovalService
+
+approval = ApprovalService()
+
+# Создать действие с frozen параметрами
+action = await approval.create_support_action(
+    ticket_id=ticket_uuid,
+    action_type="refund",
+    params={"amount": 1000, "currency": "RUB"},
+    risk_level="high"
+)
+
+# Проверить целостность параметров
+is_valid = await approval.validate_params_integrity(action_id)
+
+# Обработать решение одобрения
+result = await approval.process_approval_decision(
+    action_id=action_id,
+    staff_id="staff_123",
+    approved=True
+)
+```
+
+### 4. Staff Approval Engine (`src/services/staff_approval.py`)
+Управление одобрениями с учетом ролей сотрудников.
+
+```python
+from src.services.staff_approval import StaffApprovalEngine, StaffRole
+
+staff_engine = StaffApprovalEngine()
+
+# Добавить сотрудника
+staff_engine.add_staff_member(
+    staff_id="emp_123",
+    roles=[StaffRole.SUPPORT, StaffRole.FINANCE]
+)
+
+# Проверить права одобрения
+can_approve = staff_engine.can_approve(
+    staff_id="emp_123",
+    required_role=StaffRole.FINANCE
+)
+
+# Создать карточку одобрения
+card = staff_engine.create_approval_card(
+    action_id=action_uuid,
+    action_type="refund",
+    risk_level="high",
+    params={"amount": 1000}
+)
+
+message = card.generate_message()
+```
+
+**Роли сотрудников:**
+- `SUPPORT` - Может одобрять действия low/medium risk
+- `FINANCE` - Требуется для финансовых действий
+- `ADMIN` - Может одобрять все действия, включая critical
+
+### 5. LLM Service (`src/services/llm.py`)
+**Read-only** LLM интеграция с поддержкой OpenAI и Anthropic.
+
+```python
+from src.services.llm import get_llm_service
+
+llm = get_llm_service()
+
+# Только read-only операции
+response = await llm.generate_response(prompt)
+analysis = await llm.analyze_ticket(content)
+suggestion = await llm.suggest_resolution(ticket_id)
+```
+
+**Поддерживаемые провайдеры:**
+- OpenAI: `gpt-4-turbo`, `gpt-4`, `gpt-3.5-turbo`
+- Anthropic: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
+
+### 6. RAG Investigation Service (`src/services/llm_investigation.py`)
+Retrieval-Augmented Generation для расследования вопросов через Knowledge Base.
+
+```python
+from src.services.llm_investigation import InvestigationService
+
+investigation = InvestigationService()
+
+# Расследовать вопрос
+result = await investigation.investigate(
+    query="Как сбросить пароль?",
+    user_id="user_123",
+    conversation_context={"verified": True}
+)
+
+# Зарегистрировать версию KB
+investigation.register_kb_version(
+    kb_id="faq_main",
+    owner="support_team",
+    version="1.0.0",
+    status="active",
+    effective_date=datetime.now(),
+    review_date=datetime(2026, 12, 31)
+)
+```
+
+**Фильтрация KB:**
+- ✅ Только `"active"` KB используются
+- ❌ `"draft"` и `"archived"` исключаются
+- ✅ Проверка дат: `effective_date <= now <= review_date`
+
+### 7. Handoff Engine (`src/services/handoff_engine.py`)
+Автоматическая эскалация на человека с 7 триггерами.
+
+```python
+from src.services.handoff_engine import get_handoff_service, HandoffTriggerType
+
+handoff = get_handoff_service()
+
+# Проверить и выполнить handoff если нужен
+context = HandoffContext(
+    conversation_id=conv_id,
+    user_id="user_123",
+    trigger_type=HandoffTriggerType.EXPLICIT_REQUEST,
+    trigger_reason="Пользователь попросил оператора"
+)
+
+is_handed_off = await handoff.check_and_execute(context)
+
+# Отслеживать сбои для обнаружения каскадов
+handoff.record_tool_failure(conversation_id)
+handoff.record_llm_failure(conversation_id)
+handoff.reset_failures(conversation_id)
+```
+
+**7 триггеров escalation:**
+1. `EXPLICIT_REQUEST` - Явный запрос ("оператора", "менеджер")
+2. `IDENTITY_NOT_VERIFIED` - Проверка идентичности не прошла
+3. `MONEY_LEGAL_ISSUE` - Финансовые/юридические вопросы
+4. `ACCOUNT_SECURITY` - Взлом/безопасность аккаунта
+5. `DATA_REQUEST_UNKNOWN_POLICY` - GDPR/удаление данных
+6. `TOOL_FAILURE_CASCADE` - 2+ ошибки инструмента подряд
+7. `DOUBLE_LLM_FAILURE` - 2+ ошибки LLM подряд
+
+### 8. Read-Only Tools Registry (`src/services/llm_tools.py`)
+Строго контролируемый набор read-only инструментов для LLM.
+
+```python
+from src.services.llm_tools import get_tools_registry
+
+tools = get_tools_registry()
+
+# Получить доступные инструменты
+available = tools.get_available_tools()
+
+# Выполнить инструмент
+result = await tools.execute_tool("faq", query="Как сбросить пароль?")
+```
+
+**Доступные инструменты:**
+- `ApprovedFAQTool` - FAQ из curated KB
+- `UserSupportSnapshotTool` - История поддержки пользователя
+- `SubscriptionStatusTool` - Статус подписки
+- `MaskedPaymentsTool` - Маскированная история платежей
+- `SearchHealthTool` - Здоровье сервиса поиска
+- `CurrentIncidentsTool` - Текущие инциденты
+- `PromoEligibilityTool` - Eligibility для промокодов
+- `JobsPublicStatusTool` - Публичный статус вакансий
+
+**Физическая изоляция:**
+- ❌ БЕЗ mutation tools
+- ❌ БЕЗ raw SQL
+- ❌ БЕЗ shell access
+- ✅ ТОЛЬКО read-only операции
+
+---
+
+
+
 ## Режим B: LLM расследование и Human Handoff
 
 ### 📌 Обзор

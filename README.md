@@ -233,11 +233,16 @@ POST /api/v1/webhooks/reconciliation
 
 ## Telegram Bot Commands
 
+### Core Commands
 - `/start` - Start the bot
 - `/help` - Show help message
 - `/issue` - Report a new issue
 - `/status` - Check ticket status
 - `/cancel` - Cancel current operation
+
+### Mode A: Deterministic Flows
+- `/referral_code` - Get referral promo code (15% discount, unlimited)
+- `/review_promo` - Get promo code for review (15% discount, one-time use)
 
 ## Code Quality
 
@@ -274,9 +279,22 @@ from src.infrastructure.m2m.clients import FuckHRAPIClient, JobsAPIClient
 # - Trace-ID: {action_id} - Correlates requests for debugging
 ```
 
-## LLM Service
+## Core Services
 
-LLM is **read-only** to prevent unauthorized mutations:
+### 1. FSM Service (`src/services/fsm.py`)
+State machine for managing deterministic conversation flows with strict state transitions.
+
+```python
+from src.services.fsm import SupportFlowFSM
+
+fsm = SupportFlowFSM()
+can_proceed = fsm.can_transition(current_state, next_state)
+fsm.transition(current_state, next_state, context)
+allowed = fsm.get_allowed_transitions(current_state)
+```
+
+### 2. LLM Service (`src/services/llm.py`)
+**Read-only** LLM integration with support for OpenAI and Anthropic providers:
 
 ```python
 from src.services.llm import get_llm_service
@@ -288,6 +306,189 @@ response = await llm.generate_response(prompt)
 analysis = await llm.analyze_ticket(content)
 suggestion = await llm.suggest_resolution(ticket_id)
 ```
+
+**Provider Configuration:**
+- OpenAI: `gpt-4-turbo`, `gpt-4`, etc.
+- Anthropic: `claude-3-opus`, `claude-3-sonnet`, etc.
+
+### 3. Identity Service (`src/services/identity.py`)
+Manages Telegram ↔ QuickOffer account binding:
+
+```python
+from src.services.identity import get_identity_service
+
+identity = get_identity_service()
+
+# Check if Telegram ID is bound
+response = await identity.check_identity(telegram_id)
+
+# Generate one-time auth link
+auth_link = await identity.generate_auth_link(telegram_id, ttl_seconds=3600)
+
+# Check and bind or generate link
+result = await identity.check_and_bind_or_link(telegram_id)
+```
+
+### 4. RAG Investigation Service (`src/services/llm_investigation.py`)
+Retrieval-Augmented Generation (RAG) for knowledge base queries:
+
+```python
+from src.services.llm_investigation import InvestigationService
+
+investigation = InvestigationService()
+
+# Investigate user query
+result = await investigation.investigate(
+    query="How do I reset my password?",
+    user_id="user_123",
+    conversation_context={"verified": True}
+)
+
+# Register Knowledge Base version
+investigation.register_kb_version(
+    kb_id="faq_main",
+    owner="support_team",
+    version="1.0.0",
+    status="active",
+    effective_date=datetime.now(),
+    review_date=datetime(2026, 12, 31)
+)
+```
+
+**KB Status Filtering:**
+- ✅ Only `"active"` KBs are used
+- ❌ `"draft"` and `"archived"` are excluded
+- Date validation: `effective_date <= now <= review_date`
+
+### 5. Handoff Engine (`src/services/handoff_engine.py`)
+Automatic escalation to human support with 7 trigger types:
+
+```python
+from src.services.handoff_engine import get_handoff_service, HandoffTriggerType
+
+handoff = get_handoff_service()
+
+# Check and execute handoff if triggered
+context = HandoffContext(
+    conversation_id=conv_id,
+    user_id="user_123",
+    trigger_type=HandoffTriggerType.EXPLICIT_REQUEST,
+    trigger_reason="User asked for operator"
+)
+
+is_handed_off = await handoff.check_and_execute(context)
+
+# Track failures for cascade detection
+handoff.record_tool_failure(conversation_id)
+handoff.record_llm_failure(conversation_id)
+handoff.reset_failures(conversation_id)
+```
+
+**7 Handoff Triggers:**
+1. `EXPLICIT_REQUEST` - User asks for human ("оператора", "менеджер")
+2. `IDENTITY_NOT_VERIFIED` - Auth verification failed
+3. `MONEY_LEGAL_ISSUE` - Keywords: "refund", "lawsuit", "возврат"
+4. `ACCOUNT_SECURITY` - Keywords: "hacked", "breach", "взломана"
+5. `DATA_REQUEST_UNKNOWN_POLICY` - GDPR/data deletion requests
+6. `TOOL_FAILURE_CASCADE` - 2+ consecutive tool failures
+7. `DOUBLE_LLM_FAILURE` - 2+ consecutive LLM generation failures
+
+### 6. Read-Only Tools Registry (`src/services/llm_tools.py`)
+Strictly controlled set of read-only tools for LLM operations:
+
+```python
+from src.services.llm_tools import get_tools_registry
+
+tools = get_tools_registry()
+
+# Get available tools
+available = tools.get_available_tools()
+
+# Execute a tool
+result = await tools.execute_tool("faq", query="How to reset password?")
+```
+
+**Available Tools:**
+- `ApprovedFAQTool` - FAQ entries from curated KB
+- `UserSupportSnapshotTool` - User support history
+- `SubscriptionStatusTool` - Subscription status
+- `MaskedPaymentsTool` - Masked payment history
+- `SearchHealthTool` - Search service health
+- `CurrentIncidentsTool` - Active incidents
+- `PromoEligibilityTool` - Promo code eligibility
+- `JobsPublicStatusTool` - Public job vacancy status
+
+**Physical Isolation:**
+- ❌ NO mutation tools
+- ❌ NO raw SQL execution
+- ❌ NO shell access
+- ✅ ONLY read-only operations
+
+### 7. Approval Service (`src/services/approval_service.py`)
+Manages high-risk action approvals with frozen parameters and integrity checking:
+
+```python
+from src.services.approval_service import ApprovalService
+
+approval_service = ApprovalService()
+
+# Create support action with frozen parameters
+action = await approval_service.create_support_action(
+    ticket_id=ticket_uuid,
+    action_type="refund",
+    params={"amount": 1000, "currency": "RUB"},
+    risk_level="high"
+)
+
+# Validate parameter integrity
+is_valid = await approval_service.validate_params_integrity(action_id)
+
+# Process approval decision
+result = await approval_service.process_approval_decision(
+    action_id=action_id,
+    staff_id="staff_123",
+    approved=True,
+    decision_reason="Verified refund condition"
+)
+```
+
+### 8. Staff Approval Engine (`src/services/staff_approval.py`)
+Role-based approval management for support staff:
+
+```python
+from src.services.staff_approval import StaffApprovalEngine, StaffRole
+
+staff_engine = StaffApprovalEngine()
+
+# Add staff member with roles
+staff_engine.add_staff_member(
+    staff_id="emp_123",
+    roles=[StaffRole.SUPPORT, StaffRole.FINANCE]
+)
+
+# Check approval permission
+can_approve = staff_engine.can_approve(
+    staff_id="emp_123",
+    required_role=StaffRole.FINANCE
+)
+
+# Create approval card
+card = staff_engine.create_approval_card(
+    action_id=action_uuid,
+    action_type="refund",
+    risk_level="high",
+    params={"amount": 1000}
+)
+
+# Generate Telegram message
+message = card.generate_message()
+```
+
+**Staff Roles:**
+- `SUPPORT` - Can approve low/medium risk actions
+- `FINANCE` - Required for financial actions
+- `ADMIN` - Can approve all actions including critical
+
 
 ## Mode A (Deterministic Flows) & Mode B (LLM Investigation)
 
