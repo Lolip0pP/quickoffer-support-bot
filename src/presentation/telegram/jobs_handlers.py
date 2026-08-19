@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from src.core.config import settings
 from src.infrastructure.db.session import get_session
-from src.infrastructure.m2m.clients import JobsAPIClient
+from src.infrastructure.m2m import get_jobs_client
 from src.presentation.telegram.approval_handlers import send_approval_card
 from src.presentation.telegram.repositories import (
     get_action_repository,
@@ -195,7 +195,7 @@ async def proceed_to_approval(message: types.Message, state: FSMContext) -> None
             ticket_repo = get_ticket_repository(session)
             action_repo = get_action_repository(session)
             audit_repo = get_audit_repository(session)
-            jobs_client = JobsAPIClient()
+            jobs_client = get_jobs_client()
 
             approval_service = ApprovalService(action_repo, audit_repo)
             engine = JobsArchivalEngine(approval_service, jobs_client)

@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from src.core.config import settings
 from src.infrastructure.db.session import get_session
-from src.infrastructure.m2m.clients import FuckHRAPIClient
+from src.infrastructure.m2m import get_fuckhr_client
 from src.presentation.telegram.approval_handlers import send_approval_card
 from src.presentation.telegram.repositories import (
     get_action_repository,
@@ -121,7 +121,7 @@ async def start_refund_flow(message: types.Message, state: FSMContext) -> None:
     try:
         # Get user payments from FuckHR API
         async with get_session() as session:
-            fuckhr_client = FuckHRAPIClient()
+            fuckhr_client = get_fuckhr_client()
             approval_service = ApprovalService(
                 get_action_repository(session), get_audit_repository(session)
             )
@@ -187,7 +187,7 @@ async def select_payment(message: types.Message, state: FSMContext) -> None:
 
         # Get refund preview
         async with get_session() as session:
-            fuckhr_client = FuckHRAPIClient()
+            fuckhr_client = get_fuckhr_client()
             approval_service = ApprovalService(
                 get_action_repository(session), get_audit_repository(session)
             )
@@ -289,7 +289,7 @@ async def confirm_refund(message: types.Message, state: FSMContext) -> None:
             ticket_repo = get_ticket_repository(session)
             action_repo = get_action_repository(session)
             audit_repo = get_audit_repository(session)
-            fuckhr_client = FuckHRAPIClient()
+            fuckhr_client = get_fuckhr_client()
 
             approval_service = ApprovalService(action_repo, audit_repo)
             engine = RefundFlowEngine(approval_service, fuckhr_client)
@@ -386,7 +386,7 @@ async def collect_provider_refund_id(
         data = await state.get_data()
 
         async with get_session() as session:
-            fuckhr_client = FuckHRAPIClient()
+            fuckhr_client = get_fuckhr_client()
             approval_service = ApprovalService(
                 get_action_repository(session), get_audit_repository(session)
             )

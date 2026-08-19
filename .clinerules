@@ -16,7 +16,6 @@
   - Write concise, production-ready code with complete type annotations (`mypy` compliant).
 - **Execution Protocol for AI Agent**:
   - Do not create placeholder comments like `# TODO: implement this later`.
-  - Always generate database migration files alongside models.
 
 ## Execution Protocol for AI Agent
 - Write concise, production-ready code with complete type annotations.

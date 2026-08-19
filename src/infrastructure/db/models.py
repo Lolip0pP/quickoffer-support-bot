@@ -63,7 +63,7 @@ class SupportTicket(Base):
     state: Mapped[str] = mapped_column(
         String(100)
     )  # e.g., "pending", "in_progress", "resolved"
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    extra_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, index=True
     )

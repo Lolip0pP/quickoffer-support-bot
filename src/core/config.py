@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     m2m_api_key: str
     fuckhr_api_base_url: str = "http://localhost:8001"
     jobs_api_base_url: str = "http://localhost:8002"
+    use_mocks: bool = False
 
     # LLM Configuration
     llm_provider_key: str
     llm_provider: str = "openai"
     llm_model: str = "gpt-4-turbo"
+    llm_base_url: str | None = None
 
     # Application Configuration
     log_level: str = "INFO"
