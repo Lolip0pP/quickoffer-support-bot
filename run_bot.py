@@ -8,6 +8,7 @@ from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from src.core.config import settings
 from src.presentation.telegram import router, referral_router, review_router
@@ -67,15 +68,14 @@ async def main() -> None:
 
     # Initialize bot and dispatcher
     try:
-        bot = Bot(token=settings.telegram_bot_token)
-        print(bot)
+        session = AiohttpSession(proxy="http://kzalm-swp.nestlesoft.net:2270")
+        bot = Bot(token=settings.telegram_bot_token, session=session)
         dp = Dispatcher()
 
         # Include routers
         dp.include_router(router)
         dp.include_router(referral_router)
         dp.include_router(review_router)
-        print(dp)
 
         # Set bot commands
         await set_bot_commands(bot)
