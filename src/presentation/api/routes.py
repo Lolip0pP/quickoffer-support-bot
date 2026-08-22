@@ -2,9 +2,24 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, status
+
+from src.core.config import settings
 
 router = APIRouter(prefix="/api/v1", tags=["internal"])
+
+
+def require_internal_token(
+    x_internal_token: str | None = Header(default=None),
+) -> None:
+    """Protect internal callbacks and fail closed when no token is configured."""
+    if not settings.internal_webhook_token or (
+        x_internal_token != settings.internal_webhook_token
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid internal webhook token",
+        )
 
 
 @router.get("/health")
@@ -28,7 +43,9 @@ async def readiness_check() -> dict[str, str]:
 
 
 @router.post("/webhooks/approval")
-async def approval_webhook(payload: dict[str, Any]) -> dict[str, str]:
+async def approval_webhook(
+    payload: dict[str, Any], x_internal_token: str | None = Header(default=None)
+) -> dict[str, str]:
     """Webhook for approval notifications from management API.
 
     Args:
@@ -40,6 +57,7 @@ async def approval_webhook(payload: dict[str, Any]) -> dict[str, str]:
     Raises:
         HTTPException: If payload validation fails.
     """
+    require_internal_token(x_internal_token)
     action_id = payload.get("action_id")
     approval_status = payload.get("status")
 
@@ -59,6 +77,7 @@ async def approval_webhook(payload: dict[str, Any]) -> dict[str, str]:
 @router.post("/webhooks/reconciliation")
 async def reconciliation_webhook(
     payload: dict[str, Any],
+    x_internal_token: str | None = Header(default=None),
 ) -> dict[str, str]:
     """Webhook for reconciliation status updates from external APIs.
 
@@ -71,16 +90,14 @@ async def reconciliation_webhook(
     Raises:
         HTTPException: If payload validation fails.
     """
+    require_internal_token(x_internal_token)
     action_id = payload.get("action_id")
     reconciliation_status = payload.get("reconciliation_status")
 
     if not action_id or not reconciliation_status:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Missing required fields: "
-                "action_id, reconciliation_status"
-            ),
+            detail=("Missing required fields: " "action_id, reconciliation_status"),
         )
 
     return {
