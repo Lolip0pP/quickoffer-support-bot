@@ -1,17 +1,15 @@
-#!/usr/bin/env python3set_bot_commands
+#!/usr/bin/env python3
 """Quick start script for running the QuickOffer Support Bot in mock mode."""
 
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
-from aiogram.client.session.aiohttp import AiohttpSession
 
 from src.core.config import settings
-from src.presentation.telegram import router, referral_router, review_router
+from src.presentation.telegram import referral_router, review_router, router
 
 # Set up logging
 logging.basicConfig(
@@ -38,6 +36,7 @@ async def set_bot_commands(bot: Bot) -> None:
 
 async def main() -> None:
     """Main entry point for the bot."""
+    settings.validate_runtime("bot")
     logger.info("=" * 60)
     logger.info("QuickOffer Support Bot - Demo Mode")
     logger.info("=" * 60)
@@ -54,8 +53,8 @@ async def main() -> None:
         logger.info(f"   - Jobs API: {settings.jobs_api_base_url}")
         logger.info(f"   - Database: {settings.database_url}")
 
-    logger.info(f"Bot Token: {settings.telegram_bot_token[:10]}***")
-    logger.info(f"Approval Chat ID: {settings.telegram_approval_chat_id}")
+    logger.info("Telegram bot token is configured")
+    logger.info("Approval chat is configured")
     logger.info("=" * 60)
 
     # Initialize database
@@ -68,8 +67,7 @@ async def main() -> None:
 
     # Initialize bot and dispatcher
     try:
-        session = AiohttpSession(proxy="http://kzalm-swp.nestlesoft.net:2270")
-        bot = Bot(token=settings.telegram_bot_token, session=session)
+        bot = Bot(token=settings.telegram_bot_token)
         dp = Dispatcher()
 
         # Include routers

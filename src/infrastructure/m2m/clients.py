@@ -39,6 +39,7 @@ class FuckHRAPIClient(M2MClient):
         Returns:
             dict: API response data.
         """
+        settings.validate_runtime("m2m")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Idempotency-Key": idempotency_key,
@@ -56,9 +57,7 @@ class FuckHRAPIClient(M2MClient):
             response.raise_for_status()
             return response.json()
 
-    async def get_reconciliation_status(
-        self, action_id: uuid.UUID
-    ) -> str:
+    async def get_reconciliation_status(self, action_id: uuid.UUID) -> str:
         """Get reconciliation status from FuckHR API.
 
         Args:
@@ -67,6 +66,7 @@ class FuckHRAPIClient(M2MClient):
         Returns:
             str: Reconciliation status.
         """
+        settings.validate_runtime("m2m")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Trace-ID": str(action_id),
@@ -113,6 +113,7 @@ class JobsAPIClient(M2MClient):
         Returns:
             dict: API response data.
         """
+        settings.validate_runtime("m2m")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Idempotency-Key": idempotency_key,
@@ -130,9 +131,7 @@ class JobsAPIClient(M2MClient):
             response.raise_for_status()
             return response.json()
 
-    async def get_reconciliation_status(
-        self, action_id: uuid.UUID
-    ) -> str:
+    async def get_reconciliation_status(self, action_id: uuid.UUID) -> str:
         """Get reconciliation status from Jobs API.
 
         Args:
@@ -141,6 +140,7 @@ class JobsAPIClient(M2MClient):
         Returns:
             str: Reconciliation status.
         """
+        settings.validate_runtime("m2m")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Trace-ID": str(action_id),

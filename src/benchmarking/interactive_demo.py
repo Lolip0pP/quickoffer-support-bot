@@ -1,9 +1,12 @@
 """Interactive CLI demo - allows user to input questions and see bot responses."""
 
-import json
 import logging
 import sys
 from datetime import datetime
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from src.benchmarking.confidence_calculator import ConfidenceCalculator
 from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
@@ -64,28 +67,32 @@ class InteractiveDemo:
             print(f"  Confidence: {flow_match.match_score}")
             print(f"  Description: {flow_match.flow_description}")
 
-            result["stages"].append({
-                "name": "flow_matching",
-                "result": "matched",
-                "flow_name": flow_match.flow_name,
-                "score": flow_match.match_score,
-            })
+            result["stages"].append(
+                {
+                    "name": "flow_matching",
+                    "result": "matched",
+                    "flow_name": flow_match.flow_name,
+                    "score": flow_match.match_score,
+                }
+            )
 
             result["final_answer"] = flow_match.flow_description
             result["confidence"] = ConfidenceCalculator.calculate_flow_confidence(
                 flow_match.match_score
             )
-            result["approval_token"] = (
-                self.approval_generator.generate_benchmark_token(flow_match.flow_name)
+            result["approval_token"] = self.approval_generator.generate_benchmark_token(
+                flow_match.flow_name
             )
 
         else:
             print("  [NO] No flow matched, proceeding to RAG retrieval...")
 
-            result["stages"].append({
-                "name": "flow_matching",
-                "result": "not_matched",
-            })
+            result["stages"].append(
+                {
+                    "name": "flow_matching",
+                    "result": "not_matched",
+                }
+            )
 
             # STAGE 2: RAG Retrieval
             print("\n[STAGE 2] Searching in RAG dataset (BM25)...")
@@ -93,16 +100,20 @@ class InteractiveDemo:
 
             if rag_matches:
                 top_match = rag_matches[0]
-                print(f"  [YES] Found relevant Q&A (relevance: {top_match.relevance_score})")
+                print(
+                    f"  [YES] Found relevant Q&A (relevance: {top_match.relevance_score})"
+                )
                 print(f"  Similar question: {top_match.question[:80]}...")
                 print(f"  Answer: {top_match.answer[:100]}...")
 
-                result["stages"].append({
-                    "name": "rag_retrieval",
-                    "result": "found",
-                    "similar_question": top_match.question,
-                    "relevance_score": top_match.relevance_score,
-                })
+                result["stages"].append(
+                    {
+                        "name": "rag_retrieval",
+                        "result": "found",
+                        "similar_question": top_match.question,
+                        "relevance_score": top_match.relevance_score,
+                    }
+                )
 
                 result["final_answer"] = top_match.answer
                 confidence = ConfidenceCalculator.calculate_rag_confidence(
@@ -123,12 +134,14 @@ class InteractiveDemo:
                     print(f"  [YES] LLM improved answer")
                     print(f"  Confidence: {confidence} -> {improved_confidence}")
 
-                    result["stages"].append({
-                        "name": "llm_improvement",
-                        "result": "improved",
-                        "original_confidence": confidence,
-                        "improved_confidence": improved_confidence,
-                    })
+                    result["stages"].append(
+                        {
+                            "name": "llm_improvement",
+                            "result": "improved",
+                            "original_confidence": confidence,
+                            "improved_confidence": improved_confidence,
+                        }
+                    )
 
                     result["final_answer"] = improved_answer
                     result["confidence"] = improved_confidence
@@ -136,27 +149,29 @@ class InteractiveDemo:
             else:
                 print("  [NO] No relevant Q&A found in knowledge base")
 
-                result["stages"].append({
-                    "name": "rag_retrieval",
-                    "result": "not_found",
-                })
+                result["stages"].append(
+                    {
+                        "name": "rag_retrieval",
+                        "result": "not_found",
+                    }
+                )
 
                 # STAGE 3: LLM Fallback
                 print("\n[STAGE 3] Attempting LLM fallback generation...")
-                fallback_answer, fallback_confidence = (
-                    self.llm_improver.improve_answer(
-                        question, "No information found in knowledge base.", 0.0
-                    )
+                fallback_answer, fallback_confidence = self.llm_improver.improve_answer(
+                    question, "No information found in knowledge base.", 0.0
                 )
 
                 print(f"  [YES] LLM generated fallback answer")
                 print(f"  Confidence: {fallback_confidence}")
 
-                result["stages"].append({
-                    "name": "llm_fallback",
-                    "result": "generated",
-                    "confidence": fallback_confidence,
-                })
+                result["stages"].append(
+                    {
+                        "name": "llm_fallback",
+                        "result": "generated",
+                        "confidence": fallback_confidence,
+                    }
+                )
 
                 result["final_answer"] = fallback_answer
                 result["confidence"] = fallback_confidence

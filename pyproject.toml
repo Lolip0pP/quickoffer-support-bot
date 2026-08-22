@@ -75,3 +75,8 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "alembic.*"
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["asyncio: marks a coroutine test"]
