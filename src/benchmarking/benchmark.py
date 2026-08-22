@@ -7,11 +7,19 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from src.benchmarking.approval_generator import ApprovalTokenGenerator
-from src.benchmarking.confidence_calculator import ConfidenceCalculator, ConfidenceSource
-from src.benchmarking.flow_matcher import FlowMatcher
-from src.benchmarking.rag_retriever import RAGRetriever
+from src.benchmarking.confidence_calculator import (
+    ConfidenceCalculator,
+    ConfidenceSource,
+)
+from src.benchmarking.hybrid_retriever import HybridRetriever
+from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
+from src.benchmarking.llm_improver import LLMImprover
 
 # Setup logging
 logging.basicConfig(
@@ -52,6 +60,8 @@ class BenchmarkResult:
     processing_stages: list[ProcessingStage] = field(default_factory=list)
     logs: list[str] = field(default_factory=list)
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    needs_staff_approval: bool = False
+    escalation_type: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -65,9 +75,7 @@ class BenchmarkResult:
             "confidence": self.confidence,
             "confidence_level": self.confidence_level,
             "approval_token": self.approval_token,
-            "processing_stages": [
-                asdict(stage) for stage in self.processing_stages
-            ],
+            "processing_stages": [asdict(stage) for stage in self.processing_stages],
             "timestamp": self.timestamp,
         }
 
@@ -75,19 +83,41 @@ class BenchmarkResult:
 class Benchmark:
     """Main benchmark class."""
 
-    def __init__(self, dataset_path: str = "docs/rag_dataset.jsonl"):
+    def __init__(
+        self,
+        test_dataset_path: str = "docs/rag_dataset_test.jsonl",
+        train_dataset_path: str = "docs/rag_dataset_train.jsonl",
+    ):
         """Initialize benchmark.
 
         Args:
-            dataset_path: Path to RAG dataset.
+            test_dataset_path: Path to test questions dataset.
+            train_dataset_path: Path to RAG training dataset.
         """
         logger.info("=" * 80)
         logger.info("QUICKOFFER SUPPORT BOT - BENCHMARK INITIALIZATION")
         logger.info("=" * 80)
 
-        self.dataset_path = dataset_path
-        self.flow_matcher = FlowMatcher()
-        self.rag_retriever = RAGRetriever(dataset_path)
+        self.test_dataset_path = test_dataset_path
+        self.train_dataset_path = train_dataset_path
+        self.flow_matcher = LLMFlowMatcher()
+
+        # Initialize hybrid retriever with environment variables
+        import os
+
+        llm_base_url = os.getenv(
+            "LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1"
+        )
+        llm_api_key = os.getenv("LLM_PROVIDER_KEY", "")
+
+        self.hybrid_retriever = HybridRetriever(
+            dataset_path=train_dataset_path,
+            base_url=llm_base_url,
+            api_key=llm_api_key,
+            use_reranker=True,
+        )
+
+        self.llm_improver = LLMImprover()
         self.approval_generator = ApprovalTokenGenerator()
         self.results: list[BenchmarkResult] = []
 
@@ -110,30 +140,28 @@ class Benchmark:
         extracted_count = 0
 
         try:
-            with open(self.dataset_path, "r", encoding="utf-8") as f:
+            with open(self.test_dataset_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if extracted_count >= num_questions:
                         break
 
                     try:
-                        record = json.loads(line)
-                        qa_pairs = record.get("qa_pairs", [])
+                        qa = json.loads(line)
 
-                        if qa_pairs:
-                            qa = qa_pairs[0]
-                            if "question" in qa and "answer" in qa:
-                                question_obj = {
-                                    "id": f"q_{extracted_count + 1}",
-                                    "text": qa["question"],
-                                    "expected_answer": qa["answer"],
-                                }
-                                questions.append(question_obj)
-                                extracted_count += 1
+                        # Each line is a direct QA pair from llm_qa_pairs
+                        if "question" in qa and "answer" in qa:
+                            question_obj = {
+                                "id": f"q_{extracted_count + 1}",
+                                "text": qa["question"],
+                                "expected_answer": qa["answer"],
+                            }
+                            questions.append(question_obj)
+                            extracted_count += 1
 
-                                logger.info(
-                                    f"  [{extracted_count}] Extracted: "
-                                    f"{qa['question'][:60]}..."
-                                )
+                            logger.info(
+                                f"  [{extracted_count}] Extracted: "
+                                f"{qa['question'][:60]}..."
+                            )
 
                     except (json.JSONDecodeError, KeyError):
                         continue
@@ -174,35 +202,63 @@ class Benchmark:
             logger.info(f"    Description: {flow_match.flow_description}")
             logger.info(f"    Keywords: {flow_match.matched_keywords}")
 
-            result.flow_matched = flow_match.flow_name
-            result.flow_match_score = flow_match.match_score
-            result.source = "instruction_flow"
-            result.answer = flow_match.flow_description
-
-            # Generate approval token
-            approval_token = self.approval_generator.generate_benchmark_token(
-                flow_match.flow_name
-            )
-            result.approval_token = approval_token
-            logger.info(f"    Token: {approval_token[:32]}...")
-
-            # Calculate confidence
-            confidence = ConfidenceCalculator.calculate_flow_confidence(
-                flow_match.match_score
-            )
-            result.confidence = confidence
-            result.confidence_level = ConfidenceCalculator.get_confidence_level(
-                confidence
-            )
-
-            result.processing_stages.append(
-                ProcessingStage(
-                    stage_name="flow_matching",
-                    result="matched",
-                    details=f"Matched flow: {flow_match.flow_name}",
-                    score=flow_match.match_score,
+            # Handle escalations (requires staff approval)
+            if flow_match.needs_staff_approval:
+                logger.warning(
+                    f"  [ESCALATION] Critical issue detected - requires staff approval"
                 )
-            )
+                logger.warning(f"    Type: {flow_match.escalation_type}")
+
+                result.flow_matched = flow_match.flow_name
+                result.flow_match_score = flow_match.match_score
+                result.source = "escalation_requires_approval"
+                result.answer = (
+                    "This case requires staff review and approval. "
+                    "Our team will contact you shortly."
+                )
+                result.needs_staff_approval = True
+                result.escalation_type = flow_match.escalation_type
+                result.confidence = 0.3  # Low confidence for escalations
+                result.confidence_level = "low"
+
+                result.processing_stages.append(
+                    ProcessingStage(
+                        stage_name="escalation_detection",
+                        result="escalation_flagged",
+                        details=f"Escalation: {flow_match.escalation_type}",
+                        score=1.0,
+                    )
+                )
+            else:
+                result.flow_matched = flow_match.flow_name
+                result.flow_match_score = flow_match.match_score
+                result.source = "instruction_flow"
+                result.answer = flow_match.flow_description
+
+                # Generate approval token
+                approval_token = self.approval_generator.generate_benchmark_token(
+                    flow_match.flow_name
+                )
+                result.approval_token = approval_token
+                logger.info(f"    Token: {approval_token[:32]}...")
+
+                # Calculate confidence
+                confidence = ConfidenceCalculator.calculate_flow_confidence(
+                    flow_match.match_score
+                )
+                result.confidence = confidence
+                result.confidence_level = ConfidenceCalculator.get_confidence_level(
+                    confidence
+                )
+
+                result.processing_stages.append(
+                    ProcessingStage(
+                        stage_name="flow_matching",
+                        result="matched",
+                        details=f"Matched flow: {flow_match.flow_name}",
+                        score=flow_match.match_score,
+                    )
+                )
 
         else:
             logger.info("  [NO] No flow matched, proceeding to RAG retrieval...")
@@ -216,24 +272,25 @@ class Benchmark:
                 )
             )
 
-            # STAGE 2: RAG Retrieval
-            logger.info("\n[STAGE 2] Searching in RAG dataset (BM25)...")
-            rag_matches = self.rag_retriever.retrieve(question["text"], top_k=1)
+            # STAGE 2: Hybrid RAG Retrieval (BM25 + Semantic + Reranking)
+            logger.info("\n[STAGE 2] Searching in RAG dataset (Hybrid)...")
+            rag_matches = self.hybrid_retriever.retrieve(question["text"], top_k=1)
 
             if rag_matches:
                 top_match = rag_matches[0]
                 logger.info(
-                    f"  [YES] RAG MATCH FOUND (relevance: {top_match.relevance_score})"
+                    f"  [YES] RAG MATCH FOUND (rerank score: {top_match.rerank_score})"
                 )
+                logger.info(f"    BM25: {top_match.bm25_score}, Semantic: {top_match.semantic_score}")
                 logger.info(f"    Original Q: {top_match.question[:70]}...")
                 logger.info(f"    Answer: {top_match.answer[:100]}...")
 
                 result.source = "rag_history"
                 result.answer = top_match.answer
 
-                # Calculate confidence
-                confidence = ConfidenceCalculator.calculate_rag_confidence(
-                    top_match.relevance_score,
+                # Calculate confidence using rerank score (better signal than BM25)
+                confidence = ConfidenceCalculator.calculate_hybrid_rag_confidence(
+                    top_match.rerank_score,
                     len(top_match.answer),
                 )
                 result.confidence = confidence
@@ -245,10 +302,43 @@ class Benchmark:
                     ProcessingStage(
                         stage_name="rag_retrieval",
                         result="found",
-                        details=f"Source: {top_match.source_id}",
-                        score=top_match.relevance_score,
+                        details=f"Source: {top_match.source_id} (rerank: {top_match.rerank_score})",
+                        score=top_match.rerank_score,
                     )
                 )
+
+                # STAGE 3: LLM Improvement (if confidence is low)
+                if confidence < 0.65:
+                    logger.info(
+                        f"\n[STAGE 3] Confidence too low ({confidence}), "
+                        f"attempting LLM improvement..."
+                    )
+                    improved_answer, improved_confidence = (
+                        self.llm_improver.improve_answer(
+                            question["text"], result.answer, confidence
+                        )
+                    )
+
+                    result.answer = improved_answer
+                    result.confidence = improved_confidence
+                    result.confidence_level = ConfidenceCalculator.get_confidence_level(
+                        improved_confidence
+                    )
+                    result.source = "rag_history+llm_improvement"
+
+                    logger.info(
+                        f"  [YES] LLM improved answer "
+                        f"(confidence: {confidence} -> {improved_confidence})"
+                    )
+
+                    result.processing_stages.append(
+                        ProcessingStage(
+                            stage_name="llm_improvement",
+                            result="improved",
+                            details=f"LLM enhanced weak RAG answer",
+                            score=improved_confidence,
+                        )
+                    )
 
             else:
                 logger.info("  [NO] No relevant Q&A found in RAG dataset")
@@ -262,21 +352,32 @@ class Benchmark:
                     )
                 )
 
-                # STAGE 3: LLM Fallback (not implemented - just logging)
-                logger.info("\n[STAGE 3] LLM fallback would be used here")
-                logger.info("  (LLM integration skipped for benchmark)")
+                # STAGE 3: LLM Fallback
+                logger.info("\n[STAGE 3] Attempting LLM fallback...")
+                fallback_answer, fallback_confidence = self.llm_improver.improve_answer(
+                    question["text"],
+                    "No information found in knowledge base.",
+                    0.0,
+                )
 
                 result.source = "llm_fallback"
-                result.answer = "Unable to find answer in knowledge base"
-                result.confidence = 0.3
-                result.confidence_level = "low"
+                result.answer = fallback_answer
+                result.confidence = fallback_confidence
+                result.confidence_level = ConfidenceCalculator.get_confidence_level(
+                    fallback_confidence
+                )
+
+                logger.info(
+                    f"  [YES] LLM generated fallback answer "
+                    f"(confidence: {fallback_confidence})"
+                )
 
                 result.processing_stages.append(
                     ProcessingStage(
                         stage_name="llm_fallback",
-                        result="skipped",
-                        details="LLM fallback not configured",
-                        score=0.0,
+                        result="generated",
+                        details="LLM generated answer when no RAG match found",
+                        score=fallback_confidence,
                     )
                 )
 
@@ -301,7 +402,7 @@ class Benchmark:
         logger.info("#" * 80)
 
         # Extract test questions
-        test_questions = self._extract_test_questions(num_questions=10)
+        test_questions = self._extract_test_questions(num_questions=15)
 
         if not test_questions:
             logger.error("Failed to extract test questions!")
@@ -341,11 +442,15 @@ class Benchmark:
         )
 
         confidence_distribution = {
-            "very_high": sum(1 for r in self.results if r.confidence_level == "very_high"),
+            "very_high": sum(
+                1 for r in self.results if r.confidence_level == "very_high"
+            ),
             "high": sum(1 for r in self.results if r.confidence_level == "high"),
             "medium": sum(1 for r in self.results if r.confidence_level == "medium"),
             "low": sum(1 for r in self.results if r.confidence_level == "low"),
-            "very_low": sum(1 for r in self.results if r.confidence_level == "very_low"),
+            "very_low": sum(
+                1 for r in self.results if r.confidence_level == "very_low"
+            ),
         }
 
         summary = {
@@ -354,17 +459,27 @@ class Benchmark:
             "total_questions": total,
             "results": [r.to_dict() for r in self.results],
             "summary": {
-                "flow_match_rate": f"{(flow_matches / total * 100):.1f}%" if total > 0 else "0%",
+                "flow_match_rate": (
+                    f"{(flow_matches / total * 100):.1f}%" if total > 0 else "0%"
+                ),
                 "flow_matches": flow_matches,
                 "rag_matches": rag_matches,
                 "llm_fallback": llm_fallback,
                 "no_match": no_match,
                 "average_confidence": round(avg_confidence, 2),
                 "sources_breakdown": {
-                    "instruction_flow": f"{(flow_matches / total * 100):.1f}%" if total > 0 else "0%",
-                    "rag_history": f"{(rag_matches / total * 100):.1f}%" if total > 0 else "0%",
-                    "llm_fallback": f"{(llm_fallback / total * 100):.1f}%" if total > 0 else "0%",
-                    "no_match": f"{(no_match / total * 100):.1f}%" if total > 0 else "0%",
+                    "instruction_flow": (
+                        f"{(flow_matches / total * 100):.1f}%" if total > 0 else "0%"
+                    ),
+                    "rag_history": (
+                        f"{(rag_matches / total * 100):.1f}%" if total > 0 else "0%"
+                    ),
+                    "llm_fallback": (
+                        f"{(llm_fallback / total * 100):.1f}%" if total > 0 else "0%"
+                    ),
+                    "no_match": (
+                        f"{(no_match / total * 100):.1f}%" if total > 0 else "0%"
+                    ),
                 },
                 "confidence_distribution": confidence_distribution,
             },
@@ -374,10 +489,18 @@ class Benchmark:
         logger.info("BENCHMARK RESULTS SUMMARY")
         logger.info("-" * 80)
         logger.info(f"Total Questions: {total}")
-        logger.info(f"Flow Matches: {flow_matches} ({summary['summary']['flow_match_rate']})")
-        logger.info(f"RAG Matches: {rag_matches} ({summary['summary']['sources_breakdown']['rag_history']})")
-        logger.info(f"LLM Fallback: {llm_fallback} ({summary['summary']['sources_breakdown']['llm_fallback']})")
-        logger.info(f"No Match: {no_match} ({summary['summary']['sources_breakdown']['no_match']})")
+        logger.info(
+            f"Flow Matches: {flow_matches} ({summary['summary']['flow_match_rate']})"
+        )
+        logger.info(
+            f"RAG Matches: {rag_matches} ({summary['summary']['sources_breakdown']['rag_history']})"
+        )
+        logger.info(
+            f"LLM Fallback: {llm_fallback} ({summary['summary']['sources_breakdown']['llm_fallback']})"
+        )
+        logger.info(
+            f"No Match: {no_match} ({summary['summary']['sources_breakdown']['no_match']})"
+        )
         logger.info(f"\nAverage Confidence: {summary['summary']['average_confidence']}")
         logger.info(f"Confidence Distribution: {confidence_distribution}")
         logger.info("=" * 80)
@@ -402,7 +525,7 @@ class Benchmark:
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
 
-        logger.info(f"\n✓ Results saved to {output_file.absolute()}")
+        logger.info(f"\n[OK] Results saved to {output_file.absolute()}")
 
 
 def main() -> None:

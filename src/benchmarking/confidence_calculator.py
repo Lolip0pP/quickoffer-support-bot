@@ -69,6 +69,33 @@ class ConfidenceCalculator:
         return round(min(confidence, 1.0), 2)
 
     @staticmethod
+    def calculate_hybrid_rag_confidence(
+        rerank_score: float, answer_length: int = 100
+    ) -> float:
+        """Calculate confidence for hybrid RAG-based answer using reranker score.
+
+        Args:
+            rerank_score: Reranker relevance score (0-1 or higher).
+            answer_length: Length of the answer.
+
+        Returns:
+            Confidence score (0-1).
+        """
+        base = ConfidenceCalculator.BASE_SCORES[ConfidenceSource.RAG_HISTORY]
+
+        # Reranker scores are typically in 0-1 range, but can be higher
+        # Normalize to 0-1 for confidence
+        normalized_rerank = min(rerank_score, 1.0)
+
+        # Length bonus: longer answers are usually more complete
+        length_bonus = min(answer_length / 500.0, 0.2)
+
+        # Hybrid confidence: higher base with reranker score being the primary signal
+        confidence = base * (0.75 + normalized_rerank * 0.20) + length_bonus
+
+        return round(min(confidence, 1.0), 2)
+
+    @staticmethod
     def calculate_llm_confidence(
         uncertainty_indicators: int = 0, answer_length: int = 100
     ) -> float:

@@ -1,38 +1,38 @@
 {
-  "benchmark_id": "61b232e4-957a-4eb7-ac36-7bb14832d91c",
-  "timestamp": "2026-08-20T17:50:59.877418",
-  "total_questions": 10,
+  "benchmark_id": "7487e74c-bc14-42a8-93cb-bda02fd911e6",
+  "timestamp": "2026-08-21T07:59:24.686761",
+  "total_questions": 15,
   "results": [
     {
       "question_id": "q_1",
-      "question": "вопрос, подписка есть, но почему она действует только на один аккаунт",
-      "flow_matched": "subscription_management",
-      "flow_match_score": 0.4,
+      "question": "Как получить промокод на скидку для подписки?",
+      "flow_matched": "referral_promo",
+      "flow_match_score": 0.3,
       "source": "instruction_flow",
-      "answer": "Управление подпиской и автопродлением",
-      "confidence": 0.79,
+      "answer": "Реферальный промокод и программа рефералов",
+      "confidence": 0.77,
       "confidence_level": "high",
-      "approval_token": "99af1168-1b1d-4b4a-9e76-b5e219d232e2_c850da8acd35128c",
+      "approval_token": "6f03e141-83ea-4027-96a6-5efcfdf4f7ca_7cd15deab6e07ea7",
       "processing_stages": [
         {
           "stage_name": "flow_matching",
           "result": "matched",
-          "details": "Matched flow: subscription_management",
-          "score": 0.4,
+          "details": "Matched flow: referral_promo",
+          "score": 0.3,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.818836"
+      "timestamp": "2026-08-21T07:59:23.748927"
     },
     {
       "question_id": "q_2",
-      "question": "/start",
+      "question": "Почему не загружается сайт?",
       "flow_matched": null,
       "flow_match_score": null,
       "source": "rag_history",
-      "answer": "Добрый день, какой у вас вопрос?)",
-      "confidence": 0.71,
-      "confidence_level": "high",
+      "answer": "Сайт восстановлен. Причина временной недоступности — переезд на более стабильные российские сервера, в ходе которого произошёл кратковременный технический сбой.",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
         {
@@ -45,44 +45,184 @@
         {
           "stage_name": "rag_retrieval",
           "result": "found",
-          "details": "Source: 1003948911_0_0",
-          "score": 12.4433,
+          "details": "Source: qa_2071 (rerank: 0.9954)",
+          "score": 0.9954,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.820832"
+      "timestamp": "2026-08-21T07:59:23.752205"
     },
     {
       "question_id": "q_3",
-      "question": "Здравствуйте, можно ли продлить подписку на 90 дней по старой цене?",
-      "flow_matched": "subscription_management",
-      "flow_match_score": 0.4,
-      "source": "instruction_flow",
-      "answer": "Управление подпиской и автопродлением",
-      "confidence": 0.79,
-      "confidence_level": "high",
-      "approval_token": "b8248ef6-ed86-4cb7-afc0-3e18e18595e1_635dbb4124a728ab",
+      "question": "Можно ли добавить страны обратно в параметры поиска после исправления запроса?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Необходимо исключить из запроса ключевые слова «продажи» и «маркетинг», а также добавить подходящие смежные должности (например, руководитель проектного офиса, руководитель направления по бизнес-проце",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: subscription_management",
-          "score": 0.4,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_1097 (rerank: 0.9327)",
+          "score": 0.9327,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.824028"
+      "timestamp": "2026-08-21T07:59:23.932069"
     },
     {
       "question_id": "q_4",
-      "question": "Здравствуйте) Как настроить бота, столы он откликался только на нужные мне вакансии?\nСейчас поиск настроен так:\nQA OR \"QA Engineer\" OR \"QA manual\" OR \"Middle QA\" OR \"QA Middle\" NOT senior NOT Senior NOT lead NOT Lead NOT automation NOT Automation NOT auto NOT \"QA Lead\" NOT \"QA Senior\" NOT Java NOT Python NOT \"QA Automation Lead\" NOT (Python) NOT (Java) NOT \"Системный аналитик\" NOT аналитик NOT Системный NOT \"Инженер по качеству\"\nКак исключить из поиска \"инженер по качеству\"?",
+      "question": "Какие условия оплаты при рассылке резюме?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Мы предлагаем схему с промокодами: предоставляем вам промокоды на скидку для ваших пользователей при покупке подписок на нашем сервисе. Взамен вы получаете процент с продаж этих подписок. Это популярн",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_1954 (rerank: 0.9782)",
+          "score": 0.9782,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.013358"
+    },
+    {
+      "question_id": "q_5",
+      "question": "Как система анализирует резюме для подбора вакансий и как настроить фильтрацию по отраслям?",
+      "flow_matched": "search_configuration",
+      "flow_match_score": 0.4,
+      "source": "instruction_flow",
+      "answer": "Настройка поиска и фильтров вакансий",
+      "confidence": 0.79,
+      "confidence_level": "high",
+      "approval_token": "bcbbfd2e-8998-416f-b641-e049432fecad_2cf6dc4253f0dd1d",
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "matched",
+          "details": "Matched flow: search_configuration",
+          "score": 0.4,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.104060"
+    },
+    {
+      "question_id": "q_6",
+      "question": "В каком формате проходит карьерная консультация?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Консультация проходит в письменном виде. Вы описываете интересующие вопросы и присылаете резюме в формате PDF. Данные передаются карьерному консультанту, который готовит ответы и рекомендации. Готовый",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_2422 (rerank: 0.9934)",
+          "score": 0.9934,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.104060"
+    },
+    {
+      "question_id": "q_7",
+      "question": "Сколько вариантов сопроводительных писем можно создать в сервисе и как это сделать?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Сервис использует ИИ для создания трёх вариантов сопроводительных писем на каждый отклик. Система автоматически выбирает и отправляет работодателю наиболее подходящий из сгенерированных вариантов.",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_536 (rerank: 0.9545)",
+          "score": 0.9545,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.202197"
+    },
+    {
+      "question_id": "q_8",
+      "question": "Куда оставить отзыв, чтобы получить скидку?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Напишите текст отзыва в этот чат. После этого мы вышлем вам персональный промокод на скидку.",
+      "confidence": 0.84,
+      "confidence_level": "high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_2094 (rerank: 0.9589)",
+          "score": 0.9589,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.284360"
+    },
+    {
+      "question_id": "q_9",
+      "question": "Почему сервис делает мало откликов на вакансии?",
       "flow_matched": "response_sending",
       "flow_match_score": 0.4,
       "source": "instruction_flow",
       "answer": "Отправка откликов и лимиты",
       "confidence": 0.79,
       "confidence_level": "high",
-      "approval_token": "f610b189-2e57-48aa-9025-6bda6a67b7c6_ea469c905139d0df",
+      "approval_token": "974a958b-9d5a-48d8-b2ef-b323ccbc0c15_835295db57821c0d",
       "processing_stages": [
         {
           "stage_name": "flow_matching",
@@ -92,95 +232,18 @@
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.824028"
+      "timestamp": "2026-08-21T07:59:24.384088"
     },
     {
-      "question_id": "q_5",
-      "question": "\nЗдравствуйте",
-      "flow_matched": null,
-      "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "добрый день! восстановили\nсейчас точно)",
-      "confidence": 0.68,
-      "confidence_level": "medium",
-      "approval_token": null,
-      "processing_stages": [
-        {
-          "stage_name": "flow_matching",
-          "result": "not_matched",
-          "details": "No matching flow found",
-          "score": 0.0,
-          "duration_ms": null
-        },
-        {
-          "stage_name": "rag_retrieval",
-          "result": "found",
-          "details": "Source: 1004460790_3_0",
-          "score": 6.5258,
-          "duration_ms": null
-        }
-      ],
-      "timestamp": "2026-08-20T17:50:59.825445"
-    },
-    {
-      "question_id": "q_6",
-      "question": "Добрый день!\nЯ бы хотел получить реферальный промокод.\nЯ очень быстро нашел работу с вашим сервисом и друзья начали спрашивать как. Хочу подключить их под свою реферальную систему",
-      "flow_matched": null,
-      "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Добрый день! Рады что сервис помог вам) Есть пожелания к названию промокода?",
-      "confidence": 0.77,
-      "confidence_level": "high",
-      "approval_token": null,
-      "processing_stages": [
-        {
-          "stage_name": "flow_matching",
-          "result": "not_matched",
-          "details": "No matching flow found",
-          "score": 0.0,
-          "duration_ms": null
-        },
-        {
-          "stage_name": "rag_retrieval",
-          "result": "found",
-          "details": "Source: 1007184587_0_0",
-          "score": 104.1549,
-          "duration_ms": null
-        }
-      ],
-      "timestamp": "2026-08-20T17:50:59.827928"
-    },
-    {
-      "question_id": "q_7",
-      "question": "добрый вечер\nпочему отправляются не релевантные отклики?\n\n\nмам\n\n\nм",
-      "flow_matched": "response_sending",
-      "flow_match_score": 0.65,
-      "source": "instruction_flow",
-      "answer": "Отправка откликов и лимиты",
-      "confidence": 0.84,
-      "confidence_level": "high",
-      "approval_token": "7ccf5160-8803-4e80-962e-4c34bcc57635_f5b88254221ebf4f",
-      "processing_stages": [
-        {
-          "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: response_sending",
-          "score": 0.65,
-          "duration_ms": null
-        }
-      ],
-      "timestamp": "2026-08-20T17:50:59.865416"
-    },
-    {
-      "question_id": "q_8",
-      "question": "добрый день. кажется какая-то бага\nна хх при этом нормально получается откликаться без ограничений\nтакая штука происходит уже второй день. но если вчера было 200 откликов суммарно то после 12 ночи, когда я включил приложение он откликнулся в час ночи 22 раза в 2 часа ночи 29 раз и в 11 утра 13 раз и все говорит дневной лимит, при этом позволяет руками на хх откликаться.\n\nПрошу максимально быстро разобраться и обсудить компенсацию моих потерь финансы\\время.\n\nза ранее благодарю!\n\nвот запись экрана о том что это происходит довольно часто",
+      "question_id": "q_10",
+      "question": "Что делать, если достигнут дневной лимит откликов на hh.ru?",
       "flow_matched": "response_sending",
       "flow_match_score": 0.95,
       "source": "instruction_flow",
       "answer": "Отправка откликов и лимиты",
       "confidence": 0.89,
       "confidence_level": "very_high",
-      "approval_token": "787325cf-66b3-4629-a7f8-df6c5f694c04_ab331ee0ff8fd211",
+      "approval_token": "25f0732d-0b51-4e5e-a156-c8211ef8cf45_adbd40de6a36e6cf",
       "processing_stages": [
         {
           "stage_name": "flow_matching",
@@ -190,16 +253,114 @@
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.866419"
+      "timestamp": "2026-08-21T07:59:24.384088"
     },
     {
-      "question_id": "q_9",
-      "question": "Привет, Я на связи)",
+      "question_id": "q_11",
+      "question": "Где посмотреть статистику по пополнениям?",
       "flow_matched": null,
       "flow_match_score": null,
       "source": "rag_history",
-      "answer": "привет! ща сек, разбираемся с этим\nа ты когда на хх откликаешься, у тебя проходят отклики?\nвообщем если вкратце как это работает - бот откликается на вакансии пока не получает от ХХ ошибку \"лимит откл",
-      "confidence": 0.81,
+      "answer": "Статистика и анализ откликов находятся на странице «Статистика». Временно есть технические сложности с hh.ru, но функция скоро заработает.",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_2372 (rerank: 0.9885)",
+          "score": 0.9885,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.390403"
+    },
+    {
+      "question_id": "q_12",
+      "question": "Что делать, если не перезапускается компания и не работают отклики?",
+      "flow_matched": "response_sending",
+      "flow_match_score": 0.4,
+      "source": "instruction_flow",
+      "answer": "Отправка откликов и лимиты",
+      "confidence": 0.79,
+      "confidence_level": "high",
+      "approval_token": "278ec0c4-e2f1-4cc0-94d1-f9ffb73e9d69_555f7e0c0a6f6ceb",
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "matched",
+          "details": "Matched flow: response_sending",
+          "score": 0.4,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.470728"
+    },
+    {
+      "question_id": "q_13",
+      "question": "Как получить карьерную консультацию, доступную по тарифу?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "На тарифе с пользователем на связи живой карьерный консультант, который отвечает на вопросы в чате и выполняет один разбор резюме.",
+      "confidence": 0.86,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_134 (rerank: 0.9683)",
+          "score": 0.9683,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.472235"
+    },
+    {
+      "question_id": "q_14",
+      "question": "Как заполнение профиля влияет на ATS-фильтрацию и отклики работодателей?",
+      "flow_matched": "response_sending",
+      "flow_match_score": 0.4,
+      "source": "instruction_flow",
+      "answer": "Отправка откликов и лимиты",
+      "confidence": 0.79,
+      "confidence_level": "high",
+      "approval_token": "9d15086e-c0b4-4609-9422-45e6a1cfcab7_192e30440756b85e",
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "matched",
+          "details": "Matched flow: response_sending",
+          "score": 0.4,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-21T07:59:24.563741"
+    },
+    {
+      "question_id": "q_15",
+      "question": "Как отключить автоостановку поиска?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history",
+      "answer": "Нажмите кнопку «Остановить» на странице активного поиска.",
+      "confidence": 0.78,
       "confidence_level": "high",
       "approval_token": null,
       "processing_stages": [
@@ -213,52 +374,31 @@
         {
           "stage_name": "rag_retrieval",
           "result": "found",
-          "details": "Source: 1007774939_2_0",
-          "score": 23.9348,
+          "details": "Source: qa_357 (rerank: 0.9764)",
+          "score": 0.9764,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-20T17:50:59.866419"
-    },
-    {
-      "question_id": "q_10",
-      "question": "/start\nЗдравствуйте, помогите настроить правильно поиск",
-      "flow_matched": "search_configuration",
-      "flow_match_score": 0.55,
-      "source": "instruction_flow",
-      "answer": "Настройка поиска и фильтров вакансий",
-      "confidence": 0.82,
-      "confidence_level": "high",
-      "approval_token": "76cd8b08-6a0e-4d02-9f75-f61f9d6728e3_788feed06bea8b3f",
-      "processing_stages": [
-        {
-          "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: search_configuration",
-          "score": 0.55,
-          "duration_ms": null
-        }
-      ],
-      "timestamp": "2026-08-20T17:50:59.875431"
+      "timestamp": "2026-08-21T07:59:24.563741"
     }
   ],
   "summary": {
-    "flow_match_rate": "60.0%",
+    "flow_match_rate": "40.0%",
     "flow_matches": 6,
-    "rag_matches": 4,
+    "rag_matches": 9,
     "llm_fallback": 0,
     "no_match": 0,
-    "average_confidence": 0.79,
+    "average_confidence": 0.83,
     "sources_breakdown": {
-      "instruction_flow": "60.0%",
-      "rag_history": "40.0%",
+      "instruction_flow": "40.0%",
+      "rag_history": "60.0%",
       "llm_fallback": "0.0%",
       "no_match": "0.0%"
     },
     "confidence_distribution": {
-      "very_high": 1,
-      "high": 8,
-      "medium": 1,
+      "very_high": 8,
+      "high": 7,
+      "medium": 0,
       "low": 0,
       "very_low": 0
     }

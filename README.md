@@ -244,6 +244,101 @@ POST /api/v1/webhooks/reconciliation
 - `/referral_code` - Get referral promo code (15% discount, unlimited)
 - `/review_promo` - Get promo code for review (15% discount, one-time use)
 
+## Benchmarking & LLM Improvement
+
+### LLM Improver Component (`src/benchmarking/llm_improver.py`)
+
+Enhanced answer improvement system with intelligent RAG context tracking and refined tone control:
+
+#### Key Features:
+
+**1. RAG Context Tracking:**
+- Explicit source type specification (FAQ, support history, documentation, RAG/historical dialog)
+- RAG context/metadata about information sources
+- Confidence scoring visibility in user prompts
+- Quality assurance checks to verify information from knowledge base
+
+**2. Tone & Style Control:**
+- **Professional, friendly, and unhurried tone** - emphasizes customer care
+- **Simple language** - avoids jargon, explains complex concepts clearly
+- **User-oriented** - focuses on user needs and convenience
+- **Concise yet complete** - balances brevity with informativeness
+- **Mobile-friendly** - short paragraphs, clear steps, optimized for phones
+- **Empathy & humanity** - acknowledges emotions, expresses willingness to help
+
+**3. Answer Synthesis Process:**
+- **Cleanup**: Removes dialog artifacts, timestamps, and casual expressions
+- **Reformatting**: Converts to imperative instruction tone with numbered steps
+- **Verification**: Ensures accuracy against QuickOffer policies
+- **Professional formatting**: Clear structure with high readability
+
+#### Usage:
+
+```python
+from src.benchmarking.llm_improver import LLMImprover
+
+improver = LLMImprover()
+
+# Basic usage (backward compatible)
+improved, confidence = improver.improve_answer(
+    question="How do I reset my password?",
+    weak_answer="секундочку... нужно в приложение зайти...",
+    confidence=0.5
+)
+
+# Advanced usage with RAG context
+improved, confidence = improver.improve_answer(
+    question="How do I get a refund?",
+    weak_answer="Можно запросить возврат через поддержку",
+    confidence=0.6,
+    rag_context="Retrieved from FAQ section on refund policies",
+    source_type="FAQ"
+)
+```
+
+#### System Prompt Features:
+- Defines role as QuickOffer support agent
+- Lists 6 support categories
+- Specifies tone principles with examples (good vs bad)
+- Includes empathy guidelines
+- Critical security rules (Telegram ID identification, no direct DB mutations)
+
+#### User Prompt Features:
+- Shows information source with confidence level
+- Displays RAG context when available
+- Lists synthesis tasks with clear steps
+- Quality verification checklist
+- Professional formatting guidelines
+
+### Benchmark Script (`src/benchmarking/benchmark.py`)
+
+Run performance evaluation on 10 test questions:
+
+```bash
+python -m src.benchmarking.benchmark
+```
+
+Outputs `benchmark_results.json` with:
+- Flow matching accuracy
+- RAG retrieval quality
+- LLM improvement effectiveness
+- Confidence distribution
+- Processing pipeline stages
+
+### Interactive Demo (`src/benchmarking/interactive_demo.py`)
+
+Test the bot interactively:
+
+```bash
+python -m src.benchmarking.interactive_demo
+```
+
+Allows real-time testing of:
+1. Flow matching
+2. RAG retrieval
+3. LLM improvement
+4. Answer confidence scoring
+
 ## Code Quality
 
 ### Type Checking
