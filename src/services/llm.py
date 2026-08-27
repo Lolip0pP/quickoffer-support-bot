@@ -38,9 +38,10 @@ class OpenAILLMService(LLMService):
         }
 
         system_prompt = (
-            "You are a helpful support bot assistant. "
-            "Analyze support tickets and provide suggestions. "
-            "You cannot execute any actions - only analyze and suggest."
+            "You are a QuickOffer support bot assistant (MODE B: LLM Investigation). "
+            "You are read-only: analyze questions and provide suggestions only. "
+            "Never execute actions, mutations, or access production data. "
+            "For high-risk operations (refund, job archival, crypto), defer to staff approval."
         )
 
         messages = [
@@ -52,7 +53,7 @@ class OpenAILLMService(LLMService):
             "model": self.model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 1000,
+            "max_tokens": 4096,
         }
 
         async with httpx.AsyncClient() as client:
@@ -150,14 +151,15 @@ class AnthropicLLMService(LLMService):
         }
 
         system_prompt = (
-            "You are a helpful support bot assistant. "
-            "Analyze support tickets and provide suggestions. "
-            "You cannot execute any actions - only analyze and suggest."
+            "You are a QuickOffer support bot assistant (MODE B: LLM Investigation). "
+            "You are read-only: analyze questions and provide suggestions only. "
+            "Never execute actions, mutations, or access production data. "
+            "For high-risk operations (refund, job archival, crypto), defer to staff approval."
         )
 
         payload = {
             "model": self.model,
-            "max_tokens": 1000,
+            "max_tokens": 4096,
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
         }

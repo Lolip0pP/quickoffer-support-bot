@@ -1,24 +1,75 @@
-# QuickOffer Support Bot - Слой интеграции и Режим А
+# QuickOffer Support Bot - Полная документация
 
-Русская документация по реализации слоя интеграции с бэкендом и первых детерминированных автоматических флоу (Режим А).
+Русская документация по архитектуре, реализации всех компонентов, и операционной работе поддержки.
 
 ## 📋 Оглавление
 
 1. [Обзор](#обзор)
-2. [Что было реализовано](#что-было-реализовано)
-3. [Архитектура](#архитектура)
-4. [Режим A: Детерминированные потоки](#режим-a-детерминированные-потоки)
-5. [Режим B: LLM расследование и Human Handoff](#режим-b-llm-расследование-и-human-handoff)
-6. [API контракты](#api-контракты)
-7. [Тестирование](#тестирование)
+2. [Архитектура двойного режима](#архитектура-двойного-режима)
+3. [Режим A: Детерминированные потоки](#режим-a-детерминированные-потоки)
+4. [Режим B: LLM расследование и эскалация](#режим-b-llm-расследование-и-эскалация)
+5. [Компоненты и сервисы](#компоненты-и-сервисы)
+6. [Тестирование и бенчмарки](#тестирование-и-бенчмарки)
+7. [Развёртывание](#развёртывание)
 8. [Решение проблем](#решение-проблем)
 
 ## Обзор
 
-Реализована полная интеграция с бэкендом (FuckHR API) и два готовых к использованию детерминированных автоматических флоу:
+Реализована полная система поддержки QuickOffer с двумя режимами обработки:
 
+- **Режим A:** 6 детерминированных автоматических потоков с валидацией и одобрением
+- **Режим B:** RAG-исследование с LLM синтезом и автоматической эскалацией
+
+**Готовые потоки Режима A:**
 - **Флоу 4:** Получение реферального промокода (15% скидка, бессрочный)
-- **Флоу 5:** Получение промокода за отзыв (15% скидка, one-time use)
+- **Флоу 5:** Получение промокода за отзыв (15% скидка, одноразовый)
+- **Другие:** Возврат, архивирование вакансий, крипто-платежи, помощь в карьере
+
+**Ключевые возможности:**
+- ✅ 6 детерминированных потоков (Режим A) с одобрением персонала
+- ✅ RAG-retrieval с гибридным поиском (BM25 + семантический)
+- ✅ Автоматические эскалации (7 триггеров)
+- ✅ Система оценки качества (бенчмарк, confidence scoring)
+- ✅ Полная изоляция LLM (только чтение данных)
+- ✅ Полный audit trail для соответствия нормативам
+
+## Архитектура двойного режима
+
+### Общий поток обработки
+
+```
+Вопрос пользователя
+       ↓
+  ФАЗА 1: Классификация интента (MODE_A vs MODE_B)
+       ↓
+  ┌─────────────────┬──────────────────┐
+  ↓                 ↓
+РЕЖИМ A          РЕЖИМ B
+(6 потоков)      (RAG + LLM)
+  ↓                 ↓
+ФАЗА 2:        ФАЗА 2:
+Инициализация  RAG Retrieval
+FSM            (гибридный поиск)
+  ↓                 ↓
+ФАЗА 3:        ФАЗА 3:
+Выполнение     LLM Генерация
+инструментов   (read-only)
+  ↓                 ↓
+ФАЗА 4:        ФАЗА 4:
+Ответ или      Ответ или
+Одобрение      Эскалация
+```
+
+### Режим A vs Режим B
+
+| Аспект | Режим A (Детерминированный) | Режим B (Исследование) |
+|--------|---------------------------|----------------------|
+| **Типы вопросов** | 6 предопределенных потоков | Все остальные вопросы |
+| **Обработка** | Конечный автомат (FSM) | RAG + LLM синтез |
+| **Одобрение** | Требуется для рискованных операций | Нет (только читает) |
+| **Инструменты** | Мутирующие API вызовы | Только read-only |
+| **Скорость** | Быстро (~1-2 сек) | Медленнее (~5-10 сек) |
+| **Погрешность** | ~0% (детерминирован) | ~5-15% (LLM риск) |
 
 ## Что было реализовано
 
@@ -1283,6 +1334,206 @@ Timestamp: 2026-08-19T13:42:00Z
 
 #### 📌 Ключевые особенности:
 
+
+## Тестирование и бенчмарки
+
+### Unit & Integration тесты
+
+```bash
+# Запустить все тесты
+pytest tests/
+
+# С отчетом о покрытии
+pytest --cov=src tests/
+
+# Специфичные тесты (эскалация Mode B)
+pytest tests/test_handoff_triggers.py -v
+```
+
+### Система оценки качества (Benchmarking)
+
+```bash
+# Запустить полный бенчмарк (10 тестовых вопросов)
+python -m src.benchmarking.benchmark
+
+# Интерактивная демонстрация (Режим A & B)
+python -m src.benchmarking.interactive_demo
+```
+
+**Отслеживаемые метрики:**
+- Точность классификации интента (MODE_A vs MODE_B)
+- Качество RAG retrieval (BM25 + semantic + rerank)
+- Качество LLM ответов
+- Распределение confidence scores
+- Разбор по этапам обработки
+
+**Вывод:** `benchmark_results.json` с детальным анализом
+
+### Покрытие тестами
+
+- ✅ Переходы конечного автомата Режима A
+- ✅ RAG retrieval и LLM генерация Режима B
+- ✅ Все 7 сценариев триггеров эскалации
+- ✅ Workflow одобрения и frozen параметры
+- ✅ Обработка ошибок M2M API
+- ✅ Версионирование Knowledge Base и фильтрация
+- ✅ Binding личности и auth flow
+
+## Развёртывание
+
+### Подготовка
+
+1. **Создать `.env` файл** из `.env.example`:
+```bash
+cp .env.example .env
+# Отредактировать с вашими значениями
+```
+
+2. **Установить зависимости**:
+```bash
+pip install -e .
+```
+
+3. **Инициализировать БД**:
+```bash
+alembic upgrade head
+```
+
+4. **Загрузить Knowledge Base версию** для Режима B:
+```python
+from src.services.llm_investigation import InvestigationService
+from datetime import datetime, timedelta
+
+service = InvestigationService()
+service.register_kb_version(
+    kb_id="faq_main",
+    owner="support_team",
+    version="1.0.0",
+    entries=[...],  # Вашим данными KB
+    effective_date=datetime.utcnow(),
+    review_date=datetime.utcnow() + timedelta(days=90)
+)
+```
+
+### Локальная разработка (Mock режим)
+
+```bash
+# Выставить USE_MOCKS=true в .env
+USE_MOCKS=true
+
+# Запустить бота
+python run_bot.py
+```
+
+Mock клиенты симулируют реальные API ответы для всех M2M операций.
+
+### Production развёртывание
+
+```bash
+# Используя Docker Compose
+docker-compose up -d
+
+# Проверить статус
+docker-compose ps
+
+# Просмотреть логи
+docker-compose logs -f bot
+```
+
+### Мониторинг
+
+**Ключевые метрики для мониторинга:**
+- `handoff_tickets_created_total` - Общее количество эскалаций
+- `handoff_triggers_by_type` - Распределение по типам триггеров
+- `investigation_confidence_avg` - Средняя confidence для Mode B
+- `investigation_duration_seconds` - Время исследования
+- `llm_failures_total` - Ошибки LLM
+- `tool_failures_total` - Ошибки инструментов
+
+## Документация
+
+Дополнительная документация по различным аспектам:
+
+| Документ | Назначение |
+|----------|-----------|
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Полная архитектура (4 фазы, потоки, инструменты) |
+| **[BENCHMARK_README.md](BENCHMARK_README.md)** | Система бенчмаркинга и метрики QA |
+| **[RAG_AND_LLM_IMPROVEMENTS.md](RAG_AND_LLM_IMPROVEMENTS.md)** | Улучшения семантического поиска и LLM |
+| **[SYSTEM_PROMPTS_UPDATE.md](SYSTEM_PROMPTS_UPDATE.md)** | LLM системные промпты и терминология |
+| **[FLOW_TERMINOLOGY.md](FLOW_TERMINOLOGY.md)** | Уточнение определений (flow vs mode vs phase) |
+
+## Решение проблем
+
+### Проблемы с подключением к БД
+
+```bash
+# Проверить статус БД
+docker-compose ps
+
+# Просмотреть логи БД
+docker-compose logs postgres
+
+# Сброс БД
+docker-compose down -v
+docker-compose up
+```
+
+### Бот не отвечает
+
+```bash
+# Проверить логи бота
+docker-compose logs bot
+
+# Проверить Telegram token
+docker-compose exec bot python -c "from src.core.config import settings; print(settings.telegram_bot_token)"
+
+# Проверить подключение к БД
+docker-compose exec bot python -c "from src.infrastructure.db.session import get_session; import asyncio; asyncio.run(get_session())"
+```
+
+### Проблемы с RAG/LLM интеграцией
+
+```bash
+# Протестировать API эмбеддингов
+docker-compose exec bot python -c "from src.benchmarking.hybrid_retriever import EmbeddingService; print(EmbeddingService().get_embedding('test'))"
+
+# Запустить интерактивную демонстрацию
+python -m src.benchmarking.interactive_demo
+
+# Просмотреть результаты бенчмарка
+cat benchmark_results.json | jq '.statistics'
+```
+
+### Проблемы с эскалацией Mode B
+
+```bash
+# Протестировать детектирование handoff
+docker-compose exec bot python -c "
+from src.services.handoff_engine import HandoffService
+service = HandoffService()
+print(service.detect_triggers('I want to delete my account'))
+"
+
+# Просмотреть логи эскалаций
+docker-compose logs bot | grep "HANDOFF"
+```
+
+### Проверка Mock режима
+
+```bash
+# Убедиться что mock режим активен
+grep "USE_MOCKS" .env
+
+# Протестировать mock клиентов
+python -c "
+from src.infrastructure.m2m import get_fuckhr_client, get_jobs_client
+fuckhr = get_fuckhr_client()
+jobs = get_jobs_client()
+print(f'FuckHR: {type(fuckhr).__name__}')
+print(f'Jobs: {type(jobs).__name__}')
+"
+```
+
 **1. Отслеживание RAG-контекста:**
 - Явное указание типа источника (FAQ, история поддержки, документация, RAG/диалоги)
 - Метаданные о контексте источника
@@ -1341,7 +1592,151 @@ improved, confidence = improver.improve_answer(
 - Чек-лист проверки качества
 - Рекомендации по профессиональному форматированию
 
+## Режим B: LLM расследование и эскалация
+
+Для всех вопросов, которые не соответствуют 6 предопределенным потокам Режима A.
+
+### Компоненты Режима B
+
+1. **InvestigationService** (`src/services/llm_investigation.py`)
+   - Классификация вопроса (уровень доступа: публичный/аутентифицированный)
+   - Retrieval из Knowledge Base с версионированием
+   - LLM синтез ответа (read-only операции)
+   - Scoring уверенности
+
+2. **HandoffService** (`src/services/handoff_engine.py`)
+   - Мониторинг 7 триггеров эскалации
+   - Создание escalation тикетов с frozen context
+   - Уведомление команды поддержки с собранными фактами
+   - Предотвращение утечки чувствительных данных
+
+3. **HybridRetriever** (`src/benchmarking/hybrid_retriever.py`)
+   - BM25 лексический поиск (30% вес)
+   - Семантический поиск через FAISS эмбеддинги (70% вес)
+   - Reranking результатов для релевантности
+   - Graceful fallback при сбое API
+
+### 7 Триггеров Эскалации
+
+| # | Триггер | Признаки | Пример |
+|----|---------|----------|--------|
+| 1 | **Explicit Request** | Явный запрос оператора | "меньше оператору", "хочу поговорить с человеком" |
+| 2 | **Identity Not Verified** | Проверка личности не пройдена | Неподтвержденный Telegram ID |
+| 3 | **Money/Legal** | Деньги, возврат, судебные иски | "хочу вернуть деньги", "подам в суд" |
+| 4 | **Account Security** | Взлом аккаунта, компромисс | "аккаунт взломан", "изменил пароль" |
+| 5 | **Data Request** | GDPR, удаление, экспорт данных | "удалить мои данные", "GDPR запрос" |
+| 6 | **Tool Failures** | 2+ каскадных сбоя инструментов | Два подряд неудачных API вызова |
+| 7 | **LLM Failures** | 2+ подряд сбои LLM генерации | Два подряд неудачных LLM вызова |
+
+### Knowledge Base Версионирование
+
+Каждая версия KB имеет:
+- **Owner & Version**: Явный учет ответственности
+- **Effective/Review Dates**: Автоматическая активация/деактивация
+- **Status Filtering**: Только "active" версии используются
+- **Date Validation**: KB должна быть в эффективном периоде
+
+**Фильтры:**
+```
+INCLUDE: status == "active"
+INCLUDE: effective_date <= NOW <= review_date
+
+EXCLUDE: status == "draft"
+EXCLUDE: status == "archived"
+EXCLUDE: effective_date > NOW
+EXCLUDE: review_date < NOW
+```
+
+### Scoring Уверенности
+
+Ответы LLM включают confidence уровни:
+- **Very High (≥ 0.85)**: Дать ответ пользователю сразу
+- **High (0.7-0.85)**: Дать ответ с примечанием о контексте
+- **Medium (0.5-0.7)**: Попросить уточнение
+- **Low (< 0.5)**: Эскалация на человека
+
+### 🛠️ Исправления поиска и бенчмарка
+
+Пайплайн извлечения в бенчмарке был проверён и исправлен:
+
+- **Восстановлен семантический поиск**: `HybridRetriever.retrieve()` теперь
+  вызывает FAISS-версию скоринга (`_compute_semantic_scores_faiss`). Ранее
+  использовался полный перебор по пустому списку эмбеддингов (когда эмбеддинги
+  берутся из FAISS-кэша), из-за чего `Semantic` был равен `0.0` для всех
+  запросов.
+- **Корректная косинусная метрика в FAISS**: эмбеддинги L2-нормализуются при
+  построении индекса и при запросе, поэтому расстояние `IndexFlatL2` напрямую
+  соответствует косинусному сходству. Устаревшие (ненормализованные) кэши
+  определяются по флагу `normalized` и автоматически перестраиваются.
+- **Флоу больше не перехватывают информационные вопросы**: LLM-матчер флоу
+  принимает только высокоуверенные (≥ 0.8) *транзакционные* намерения; вопросы
+  «как работает…», «в каком формате…» уходят в RAG (Mode B).
+- **Полные ответы в отчёте**: сохранённый `benchmark_results.json` больше не
+  обрезает ответы на 200 символах.
+- **LLM-синтез всегда выполняется для Mode B**: адаптирует и проверяет
+  извлечённый ответ под конкретный вопрос (с `max_tokens=32768`).
+- **Воспроизводимые логи**: `benchmark.log` перезаписывается при каждом запуске,
+  прогресс выводится как `QUESTION i/N`.
+
+## Компоненты и сервисы
+
+### Структура проекта
+
+```
+src/
+├── core/              # Конфигурация и утилиты
+├── domain/            # Бизнес-сущности и интерфейсы
+├── infrastructure/    # БД, M2M клиенты, внешние сервисы
+│   ├── db/
+│   │   ├── session.py       # SQLAlchemy setup
+│   │   └── models.py        # ORM модели
+│   └── m2m/
+│       ├── clients.py       # Real M2M API клиенты
+│       ├── mock_clients.py  # Mock клиенты для dev
+│       └── factory.py       # Выбор real vs mock
+├── services/          # Бизнес-логика
+│   ├── fsm.py               # FSM для Режима A
+│   ├── llm.py               # LLM сервис (OpenAI, Anthropic)
+│   ├── llm_investigation.py # RAG для Режима B
+│   ├── handoff_engine.py    # Эскалация
+│   ├── approval_service.py  # Управление одобрениями
+│   └── identity.py          # Binding Telegram ID
+├── presentation/      # API и Telegram обработчики
+│   ├── telegram/
+│   │   ├── handlers.py
+│   │   ├── referral_flow.py
+│   │   ├── review_flow.py
+│   │   ├── refund_handlers.py
+│   │   ├── jobs_handlers.py
+│   │   ├── approval_handlers.py
+│   │   └── mode_b_handlers.py
+│   └── api/
+│       └── routes.py
+└── benchmarking/      # Система оценки качества
+    ├── benchmark.py          # Основной бенчмарк скрипт
+    ├── interactive_demo.py    # Интерактивная демонстрация
+    ├── hybrid_retriever.py    # Гибридный поиск (BM25 + semantic)
+    ├── flow_matcher.py        # Классификация потоков (Режим A)
+    ├── intent_router.py       # Маршрутизация (MODE_A vs MODE_B)
+    ├── llm_improver.py        # Улучшение LLM ответов
+    ├── confidence_calculator.py  # Scoring уверенности
+    └── faiss_cache.py         # Кэширование эмбеддингов
+```
+
+### Основные сервисы
+
+| Сервис | Назначение | Статус |
+|--------|-----------|--------|
+| **ApprovalService** | Управление одобрениями с frozen параметрами | Production |
+| **IdentityService** | Binding Telegram ID к QuickOffer аккаунту | Production |
+| **InvestigationService** | RAG исследование + LLM синтез | Production |
+| **HandoffService** | Детектирование 7 триггеров эскалации | Production |
+| **OpenAILLMService** | LLM интеграция с OpenAI | Production |
+| **AnthropicLLMService** | LLM интеграция с Anthropic | Production |
+| **HybridRetriever** | Гибридный поиск (BM25 + semantic + rerank) | Production |
+
 ### 📊 Бенчмарк-скрипт (`src/benchmarking/benchmark.py`)
+
 
 Запустите оценку производительности на 10 тестовых вопросах:
 

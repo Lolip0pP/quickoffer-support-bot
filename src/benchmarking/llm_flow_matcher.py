@@ -72,15 +72,23 @@ If no flow matches well, set flow_name to null."""
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.3,
-                max_tokens=200,
+                max_tokens=32768,
             )
 
             response_text = response.choices[0].message.content
+
 
             # Parse response
             import json
 
             result = json.loads(response_text)
+
+            # Only accept high-confidence *transactional* flow matches. Purely
+            # informational questions ("in what format...", "how does X work",
+            # "how do I get Y included in my plan") must fall through to RAG
+            # (Mode B), even when they mention a flow topic. A conservative
+            # threshold prevents flows from hijacking these questions.
+            flow_acceptance_threshold = 0.8
 
             if result.get("flow_name") and result.get("flow_name") in FlowMatcher.FLOWS:
                 flow_name = result["flow_name"]
@@ -89,7 +97,16 @@ If no flow matches well, set flow_name to null."""
                 # Ensure confidence is in valid range
                 confidence = max(0.0, min(1.0, confidence))
 
+                if confidence < flow_acceptance_threshold:
+                    logger.info(
+                        f"LLM flow '{flow_name}' below acceptance threshold "
+                        f"({confidence:.2f} < {flow_acceptance_threshold}); "
+                        f"routing to RAG (Mode B)"
+                    )
+                    return None
+
                 flow_match = FlowMatch(
+
                     flow_name=flow_name,
                     matched_keywords=[
                         f"llm_detected: {result.get('reason', 'intent matched')}"
@@ -119,50 +136,53 @@ If no flow matches well, set flow_name to null."""
             return self.fallback_matcher.match(question)
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt for flow detection.
+        """Build system prompt for MODE A flow detection (PHASE 1: INTENT CLASSIFICATION).
 
         Returns:
-            System prompt string.
+            System prompt string for classifying questions into 6 deterministic flows.
         """
-        return """You are an expert support system flow classifier for QuickOffer, a job search and career service platform.
+        return """You are QuickOffer support intent classifier (PHASE 1: INTENT CLASSIFICATION).
 
-Your task is to analyze user questions and determine which support flow they belong to.
+Classify user questions into MODE A deterministic flows or identify as MODE B.
 
-AVAILABLE SUPPORT FLOWS:
+MODE A: 6 DETERMINISTIC FLOWS (from Technical Specification):
 
-1. return_refund
-   - Keywords: возврат, refund, вернуть, деньги, средства
-   - Purpose: Handle payment refunds and subscription freezing
-   - Example: "Can I get a refund?" "Вернить деньги"
+1. return_refund - Refund payment + subscription deletion (staff approval required)
+2. career_assistance - Career advice and expert consultations
+3. job_archival - Permanent job vacancy suppression
+4. referral_promo - Referral code generation (15% unlimited)
+5. review_promo - Review reward promo codes (15% one-time)
+6. crypto_alt_payment - Crypto/foreign card payment options
 
-2. account_deletion
-   - Keywords: удалить аккаунт, delete account, удаление
-   - Purpose: Handle account and data deletion
-   - Example: "How to delete my account?" "Удалить мой аккаунт"
+FEW-SHOT EXAMPLES:
 
-3. search_configuration
-   - Keywords: настроить, поиск, configure, keywords, фильтры
-   - Purpose: Help with search query setup and filters
-   - Example: "How to configure search?" "Как настроить поиск по ключевым словам?"
+[MODE A EXAMPLES]
+User: "Как мне вернуть деньги?" → Flow: return_refund (confidence: 0.95)
+User: "Помогите с карьерой" → Flow: career_assistance (confidence: 0.92)
+User: "Дайте промокод друга" → Flow: referral_promo (confidence: 0.88)
+User: "Хочу заархивировать вакансию" → Flow: job_archival (confidence: 0.90)
 
-4. subscription_management
-   - Keywords: подписка, subscription, тариф, продлить, автопродление
-   - Purpose: Manage subscription, plan changes, auto-renewal
-   - Example: "Can I extend my subscription?" "Как отключить автопродление?"
+[MODE B EXAMPLES - NO DETERMINISTIC FLOW]
+User: "Почему не работает поиск?" → No flow match (Mode B: RAG+LLM investigation)
+User: "Как перезагрузить приложение?" → No flow match (Mode B)
 
-5. response_sending
-   - Keywords: отклик, response, отправка, лимит, дневной лимит
-   - Purpose: Handle application/response sending and limits
-   - Example: "Why can't I send responses?" "Дневной лимит откликов"
+[MODE B EXAMPLES - INFORMATIONAL QUESTIONS ABOUT A FLOW TOPIC]
+User: "В каком формате проходит карьерная консультация?" → No flow match (informational, Mode B)
+User: "Как получить карьерную консультацию, доступную по тарифу?" → No flow match (informational, Mode B)
+User: "Как работает реферальная программа?" → No flow match (informational, Mode B)
+User: "Куда оставить отзыв, чтобы получить скидку?" → No flow match (informational, Mode B)
 
-6. account_access
-   - Keywords: вход, авторизация, login, пароль, не могу войти
-   - Purpose: Handle login issues and account access
-   - Example: "I can't log in" "Ошибка входа"
+CLASSIFICATION RULES:
+- Analyze intent deeply, not just keywords
+- Consider Russian language variations
+- Return confidence 0.0-1.0
+- MODE A is ONLY for TRANSACTIONAL intent where the user asks the system to
+  PERFORM an action (refund me, archive this vacancy, generate my promo code,
+  pay with crypto). It is NOT for informational questions.
+- INFORMATIONAL questions ("in what format...", "how does X work", "how do I
+  get Y", "where do I...", "how much...") are ALWAYS Mode B, even if they
+  mention a flow topic. Set flow_name to null for these.
+- If best match confidence < 0.8: classify as MODE_B (no deterministic flow)
+- For MODE_B questions: set flow_name to null"""
 
-IMPORTANT RULES:
-- Analyze the intent of the question, not just keywords
-- Return a confidence score (0.0-1.0) based on how well the question matches the flow
-- Consider Russian language variations and synonyms
-- If multiple flows match, return the most relevant one
-- Return null flow_name only if absolutely no flow matches well"""
+

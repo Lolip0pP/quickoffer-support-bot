@@ -1,8 +1,25 @@
 # QuickOffer Support Bot Service
 
-Telegram-based support bot service for QuickOffer with deterministic state machine flows, LLM integration, and secure M2M operations.
+Telegram-based support bot service for QuickOffer with **dual-mode processing** (deterministic state machines + LLM investigation), RAG-based knowledge retrieval, and secure M2M operations.
+
+## 🎯 Quick Overview
+
+The bot operates in **two distinct modes**:
+
+- **MODE A**: Deterministic State Machines (6 predefined flows with staff approval)
+- **MODE B**: LLM Investigation with RAG (research-based answers + human handoff detection)
+
+**Key Features:**
+- ✅ 6 deterministic flows for high-risk operations (refunds, job archival, etc.)
+- ✅ RAG-based knowledge base retrieval with semantic search
+- ✅ Automatic handoff detection (7 escalation triggers)
+- ✅ Quality benchmarking & confidence scoring
+- ✅ Strict LLM isolation (read-only operations only)
+- ✅ Complete audit logging & frozen parameter validation
 
 ## Architecture
+
+**For detailed architecture overview, see [ARCHITECTURE.md](ARCHITECTURE.md)** - explains MODE_A vs MODE_B processing, 4 phases, tools, and logging.
 
 This project follows **Clean Architecture** principles with strict separation of concerns:
 
@@ -11,17 +28,21 @@ src/
 ├── core/              # Configuration and core utilities
 ├── domain/            # Business entities and interfaces
 ├── infrastructure/    # Database, M2M clients, external services
-├── services/          # Business logic (FSM, LLM)
-└── presentation/      # API endpoints and Telegram handlers
+├── services/          # Business logic (FSM, LLM, Investigation, Handoff)
+├── presentation/      # API endpoints and Telegram handlers
+└── benchmarking/      # Quality assurance & evaluation tools
 ```
 
 ### Key Architectural Patterns
 
 1. **Strict LLM Isolation**: LLM is read-only, cannot execute mutations
-2. **Deterministic FSM (Mode A)**: State machines with strict Pydantic validation
-3. **M2M Operations**: All state changes through typed HTTP clients with `Idempotency-Key` and `Trace-ID`
-4. **Data Frozen Snapshots**: Action approvals include SHA256 hash validation
-5. **Audit Logging**: Complete audit trail for all mutations
+2. **Deterministic FSM (Mode A)**: State machines with strict Pydantic validation  
+3. **RAG Investigation (Mode B)**: Hybrid search (BM25 + semantic) with automatic escalation
+4. **M2M Operations**: All state changes through typed HTTP clients with `Idempotency-Key` and `Trace-ID`
+5. **Data Frozen Snapshots**: Action approvals include SHA256 hash validation
+6. **Audit Logging**: Complete audit trail for all mutations
+7. **Handoff Detection**: 7 automatic escalation triggers for human intervention
+8. **Quality Assurance**: Built-in benchmarking with confidence scoring
 
 ## Tech Stack
 
@@ -66,9 +87,44 @@ quickoffer-support-bot/
 └── .env.example                    # Environment variables template
 ```
 
+## Processing Modes Overview
+
+### Mode A: Deterministic State Machines (High-Risk Operations)
+
+Predefined workflows with strict validation and approval requirements:
+
+| Flow | Purpose | Approval | Tools | Status |
+|------|---------|----------|-------|--------|
+| **Refund** | Process refunds + subscription deletion | ✅ Staff | 4+ | Production |
+| **Career Help** | Career advice & consultations | ❌ No | 2 | Production |
+| **Job Archival** | Suppress job postings | ✅ Staff | 3 | Production |
+| **Referral Promo** | Generate 15% referral codes | ❌ No | 2 | Production |
+| **Review Promo** | Generate 15% review codes | ❌ No | 2 | Production |
+| **Crypto/Alt Payment** | Handle crypto/foreign card payment | ✅ Staff | 5+ | Production |
+
+### Mode B: LLM Investigation with RAG
+
+For questions outside Mode A flows:
+
+1. **RAG Retrieval**: Hybrid search (BM25 30% + semantic 70%) with reranking
+2. **LLM Generation**: Read-only answer synthesis using retrieved context
+3. **Confidence Scoring**: Automatic quality assessment
+4. **Handoff Detection**: 7 escalation triggers for human intervention
+
+**Handoff Triggers:**
+1. Explicit request for operator
+2. Identity not verified
+3. Money/legal issues (refund, lawsuit)
+4. Account security concerns
+5. Data request (GDPR, export, delete)
+6. Tool execution failures (2+ cascade)
+7. LLM generation failures (2+ consecutive)
+
 ## Database Models
 
-### Conversation
+### Core Models
+
+#### Conversation
 Represents a Telegram conversation with a user.
 
 ```python
@@ -79,7 +135,7 @@ Represents a Telegram conversation with a user.
 - created_at, updated_at (timestamps)
 ```
 
-### SupportTicket
+#### SupportTicket
 Support ticket within a conversation.
 
 ```python
@@ -91,7 +147,7 @@ Support ticket within a conversation.
 - created_at, updated_at (timestamps)
 ```
 
-### SupportAction
+#### SupportAction
 Represents a mutation action with approval tracking.
 
 ```python
@@ -104,6 +160,66 @@ Represents a mutation action with approval tracking.
 - status (str: pending|approved|rejected|executed)
 - idempotency_key (str, unique, indexed)
 - reconciliation_status (str: pending|confirmed|failed|retrying)
+```
+
+### Mode A Specific Models
+
+#### ReferralOwnershipMapping
+Tracks 15% referral promo codes (one per user, perpetual validity).
+
+```python
+- id (UUID, PK)
+- user_id (VARCHAR 255, unique, indexed)
+- promo_code (VARCHAR 50, unique, indexed)
+- discount_percent (int, default 15)
+- is_active (bool, indexed)
+- created_at, updated_at (timestamps)
+```
+
+#### ReviewPromoCodeUsage
+Tracks one-time 15% review codes (linked to review and user).
+
+```python
+- id (UUID, PK)
+- user_id (VARCHAR 255, indexed)
+- review_id (VARCHAR 255, indexed)
+- promo_code (VARCHAR 50, unique)
+- discount_percent (int, default 15)
+- max_uses (int, default 1)
+- times_used (int, default 0)
+- is_active (bool, indexed)
+- created_at, updated_at (timestamps)
+```
+
+### Mode B Specific Models
+
+#### KnowledgeBaseVersion
+Versioned knowledge base with ownership & expiration tracking.
+
+```python
+- id (UUID, PK)
+- kb_id (str, indexed)
+- owner (str)
+- version (str)
+- entries (JSON list)
+- effective_date (timestamp, indexed)
+- review_date (timestamp, indexed)
+- status (str: active|draft|archived)
+- created_at (timestamp)
+```
+
+#### HandoffTicket
+Escalations triggered by handoff detection.
+
+```python
+- id (UUID, PK)
+- conversation_id (FK)
+- trigger_type (str: explicit|identity|money|security|data|tool_failure|llm_failure)
+- context (JSON) - Frozen investigation context
+- status (str: pending|assigned|resolved)
+- assigned_staff_id (str, nullable)
+- created_at, updated_at (timestamps)
+```
 - approval_actor_id (str, nullable)
 - created_at, approved_at, executed_at (timestamps)
 ```
@@ -310,7 +426,30 @@ improved, confidence = improver.improve_answer(
 - Quality verification checklist
 - Professional formatting guidelines
 
+### Retrieval & Benchmark Fixes
+
+The benchmark retrieval pipeline was reviewed and hardened:
+
+- **Semantic search restored**: `HybridRetriever.retrieve()` now calls the
+  FAISS-backed scorer (`_compute_semantic_scores_faiss`). Previously it used the
+  full-scan scorer over an empty in-memory list when embeddings were served from
+  the FAISS cache, which produced `Semantic: 0.0` for every query.
+- **Cosine-correct FAISS index**: embeddings are L2-normalized on build and
+  query, so the `IndexFlatL2` distance maps directly to cosine similarity.
+  Legacy (un-normalized) caches are detected via a `normalized` metadata flag
+  and rebuilt automatically on first run.
+- **Flows no longer hijack informational questions**: the LLM flow matcher only
+  accepts high-confidence (≥ 0.8) *transactional* intents; "how does X work" /
+  "in what format" questions route to RAG (Mode B).
+- **Full answers in reports**: the saved `benchmark_results.json` no longer
+  truncates answers at 200 characters.
+- **LLM synthesis always runs for Mode B**, adapting/validating each retrieved
+  answer against the user's question (with `max_tokens=32768`).
+- **Reproducible logs**: `benchmark.log` is overwritten per run and progress is
+  reported as `QUESTION i/N`.
+
 ### Benchmark Script (`src/benchmarking/benchmark.py`)
+
 
 Run performance evaluation on 10 test questions:
 
@@ -659,6 +798,98 @@ The bot automatically escalates to human support when:
 - **Date Validation**: KB must be effective_date <= now <= review_date
 - **No Draft Content**: Draft/archived KBs are excluded automatically
 
+## Mode B: LLM Investigation System
+
+### Components
+
+**InvestigationService** (`src/services/llm_investigation.py`)
+- Query classification (access level detection)
+- Knowledge base retrieval with versioning
+- LLM-based answer generation (read-only)
+- Confidence scoring and quality assessment
+
+**HandoffService** (`src/services/handoff_engine.py`)
+- Monitors 7 escalation triggers
+- Creates escalation tickets with frozen context
+- Notifies support team with investigation facts
+- Prevents sensitive data leakage
+
+**Hybrid Retriever** (`src/benchmarking/hybrid_retriever.py`)
+- BM25 lexical search (30% weight)
+- Semantic search via FAISS embeddings (70% weight)
+- Result reranking for relevance
+- Graceful fallback on API failures
+
+### Knowledge Base Versioning
+
+Each KB version has:
+- **Owner & Version**: Explicit tracking of responsibility
+- **Effective/Review Dates**: Automatic activation/deactivation
+- **Status Filtering**: Only "active" versions used
+- **Date Validation**: KB must be within effective period
+
+**Example:**
+```python
+from src.services.llm_investigation import InvestigationService
+
+service = InvestigationService()
+
+service.register_kb_version(
+    kb_id="faq_main",
+    owner="support_team",
+    version="2.1.0",
+    entries=[...],
+    effective_date=datetime.utcnow(),
+    review_date=datetime.utcnow() + timedelta(days=90)
+)
+```
+
+## Quality Assurance & Benchmarking
+
+### Benchmark System (`src/benchmarking/`)
+
+Automated evaluation on test questions:
+
+```bash
+# Run full benchmark
+python -m src.benchmarking.benchmark
+
+# Interactive demo
+python -m src.benchmarking.interactive_demo
+```
+
+**Metrics Tracked:**
+- Intent classification accuracy (Mode A vs B)
+- RAG retrieval quality (BM25 + semantic + rerank)
+- LLM answer quality
+- Confidence score distribution
+- Processing phase breakdown
+
+**Output:** `benchmark_results.json` with detailed analysis
+
+### Confidence Scoring
+
+LLM answers include confidence levels:
+- **Very High (≥ 0.85)**: Answer to user immediately
+- **High (0.7-0.85)**: Answer with note about context
+- **Medium (0.5-0.7)**: Ask for clarification
+- **Low (< 0.5)**: Escalate to human support
+
+### Mock Mode for Local Development
+
+Test without external APIs:
+
+```bash
+# .env
+USE_MOCKS=true
+DATABASE_URL=sqlite+aiosqlite:///./bot_local.db
+
+# Start bot
+python -m run_bot
+```
+
+Mock clients simulate realistic API responses for all M2M operations.
+
 ## Configuration
 
 All configuration is loaded from environment variables via `pydantic-settings`:
@@ -670,7 +901,23 @@ from src.core.config import settings
 print(settings.telegram_bot_token)
 print(settings.database_url)
 print(settings.llm_provider)
+print(settings.use_mocks)  # Enable mock mode
+print(settings.embedding_model)  # For RAG
+print(settings.reranker_model)  # For RAG
 ```
+
+### Key Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TELEGRAM_BOT_TOKEN` | - | Telegram bot API token |
+| `DATABASE_URL` | - | SQLAlchemy connection string |
+| `LLM_PROVIDER` | openai | LLM provider (openai/anthropic) |
+| `USE_MOCKS` | false | Enable mock mode for dev |
+| `EMBEDDING_MODEL` | qwen-embed-06 | RAG embedding model |
+| `RERANKER_MODEL` | qwen-rerank-06 | RAG reranking model |
+| `LOG_LEVEL` | INFO | Logging verbosity |
+| `CONFIDENCE_THRESHOLD` | 0.5 | Minimum confidence for Mode B |
 
 ## Database Migrations
 
@@ -710,20 +957,57 @@ logger.error("Error occurred")
 
 ## Testing
 
+### Unit & Integration Tests
+
 ```bash
-# Run tests (pytest configuration needed)
+# Run all tests
 pytest tests/
 
-# With coverage
+# With coverage report
 pytest --cov=src tests/
+
+# Specific test suite (Mode B handoff triggers)
+pytest tests/test_handoff_triggers.py -v
 ```
+
+### Quality Assurance Testing
+
+```bash
+# Automated benchmark evaluation
+python -m src.benchmarking.benchmark
+
+# Interactive testing (Mode A & B flows)
+python -m src.benchmarking.interactive_demo
+```
+
+### Test Coverage Areas
+
+- ✅ Mode A state machine transitions
+- ✅ Mode B RAG retrieval & LLM generation
+- ✅ All 7 handoff trigger scenarios
+- ✅ Approval workflow & frozen parameters
+- ✅ M2M API error handling
+- ✅ Knowledge base versioning & filtering
+- ✅ Identity binding & auth flow
+
+## Documentation
+
+Comprehensive documentation for different aspects:
+
+| Document | Purpose |
+|----------|---------|
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Complete architecture (4 phases, flows, tools) |
+| **[BENCHMARK_README.md](BENCHMARK_README.md)** | Benchmarking system & QA metrics |
+| **[RAG_AND_LLM_IMPROVEMENTS.md](RAG_AND_LLM_IMPROVEMENTS.md)** | Semantic search & LLM improvements |
+| **[SYSTEM_PROMPTS_UPDATE.md](SYSTEM_PROMPTS_UPDATE.md)** | LLM system prompts & terminology |
+| **[FLOW_TERMINOLOGY.md](FLOW_TERMINOLOGY.md)** | Flow vs mode vs phase definitions |
 
 ## Troubleshooting
 
 ### Database Connection Issues
 
 ```bash
-# Check PostgreSQL health
+# Check database health
 docker-compose ps
 
 # View database logs
@@ -737,18 +1021,58 @@ docker-compose up
 ### Bot Not Responding
 
 ```bash
-# Check logs
+# Check bot logs
 docker-compose logs bot
 
 # Verify Telegram token
 docker-compose exec bot python -c "from src.core.config import settings; print(settings.telegram_bot_token)"
+
+# Check database connection
+docker-compose exec bot python -c "from src.infrastructure.db.session import get_session; import asyncio; asyncio.run(get_session())"
 ```
 
-### LLM Integration Issues
+### RAG/LLM Integration Issues
 
 ```bash
-# Test LLM service
-docker-compose exec bot python -c "from src.services.llm import get_llm_service; import asyncio; asyncio.run(get_llm_service().generate_response('test'))"
+# Test embedding API
+docker-compose exec bot python -c "from src.benchmarking.hybrid_retriever import EmbeddingService; print(EmbeddingService().get_embedding('test'))"
+
+# Run interactive demo (tests full pipeline)
+python -m src.benchmarking.interactive_demo
+
+# Check benchmark results
+cat benchmark_results.json | jq '.statistics'
+```
+
+### Mode B Escalation Issues
+
+```bash
+# Test handoff detection
+docker-compose exec bot python -c "
+from src.services.handoff_engine import HandoffService
+service = HandoffService()
+# Test trigger detection
+print(service.detect_triggers('I want to delete my account'))
+"
+
+# View escalation logs
+docker-compose logs bot | grep "HANDOFF"
+```
+
+### Mock Mode Verification
+
+```bash
+# Verify mock mode is active
+grep "USE_MOCKS" .env
+
+# Test mock clients
+python -c "
+from src.infrastructure.m2m import get_fuckhr_client, get_jobs_client
+fuckhr = get_fuckhr_client()
+jobs = get_jobs_client()
+print(f'FuckHR: {type(fuckhr).__name__}')
+print(f'Jobs: {type(jobs).__name__}')
+"
 ```
 
 ## Contributing

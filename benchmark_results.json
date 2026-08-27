@@ -1,37 +1,51 @@
 {
-  "benchmark_id": "7487e74c-bc14-42a8-93cb-bda02fd911e6",
-  "timestamp": "2026-08-21T07:59:24.686761",
+  "benchmark_id": "107d2f76-74c6-4d8c-9e33-7e6572cc4cb6",
+  "timestamp": "2026-08-23T10:10:17.927784+00:00",
   "total_questions": 15,
   "results": [
     {
       "question_id": "q_1",
       "question": "Как получить промокод на скидку для подписки?",
-      "flow_matched": "referral_promo",
-      "flow_match_score": 0.3,
-      "source": "instruction_flow",
-      "answer": "Реферальный промокод и программа рефералов",
-      "confidence": 0.77,
-      "confidence_level": "high",
-      "approval_token": "6f03e141-83ea-4027-96a6-5efcfdf4f7ca_7cd15deab6e07ea7",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nДля своей подписки запросите промокод за отзыв: оставьте отзыв более 30 символов и напишите в этом чате «промокод». Мы проверим аккаунт и пришлем одноразовый бессрочный промокод на скидку 15%.\n\nТакже можно запросить реферальный промокод: он дает другу скидку 15% на первую покупку. Доступен 1 код на аккаунт, бессрочный.",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: referral_promo",
-          "score": 0.3,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_3 (rerank: 0.9921)",
+          "score": 0.9921,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:23.748927"
+      "timestamp": "2026-08-23T10:05:30.623388+00:00"
     },
     {
       "question_id": "q_2",
       "question": "Почему не загружается сайт?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Сайт восстановлен. Причина временной недоступности — переезд на более стабильные российские сервера, в ходе которого произошёл кратковременный технический сбой.",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nКратковременная недоступность была связана с переездом на более стабильные российские серверы. Сайт восстановлен.\n\nЕсли страница не загружается:\n1. Обновите её.\n2. Проверьте интернет-соединение.\n3. Напишите нам, если проблема сохранится.",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -48,18 +62,25 @@
           "details": "Source: qa_2071 (rerank: 0.9954)",
           "score": 0.9954,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:23.752205"
+      "timestamp": "2026-08-23T10:06:36.816750+00:00"
     },
     {
       "question_id": "q_3",
       "question": "Можно ли добавить страны обратно в параметры поиска после исправления запроса?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Необходимо исключить из запроса ключевые слова «продажи» и «маркетинг», а также добавить подходящие смежные должности (например, руководитель проектного офиса, руководитель направления по бизнес-проце",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\ncall_human",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -76,18 +97,25 @@
           "details": "Source: qa_1097 (rerank: 0.9327)",
           "score": 0.9327,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:23.932069"
+      "timestamp": "2026-08-23T10:06:46.942451+00:00"
     },
     {
       "question_id": "q_4",
       "question": "Какие условия оплаты при рассылке резюме?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Мы предлагаем схему с промокодами: предоставляем вам промокоды на скидку для ваших пользователей при покупке подписок на нашем сервисе. Взамен вы получаете процент с продаж этих подписок. Это популярн",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\ncall_human",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -104,39 +132,25 @@
           "details": "Source: qa_1954 (rerank: 0.9782)",
           "score": 0.9782,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.013358"
+      "timestamp": "2026-08-23T10:06:52.316726+00:00"
     },
     {
       "question_id": "q_5",
       "question": "Как система анализирует резюме для подбора вакансий и как настроить фильтрацию по отраслям?",
-      "flow_matched": "search_configuration",
-      "flow_match_score": 0.4,
-      "source": "instruction_flow",
-      "answer": "Настройка поиска и фильтров вакансий",
-      "confidence": 0.79,
-      "confidence_level": "high",
-      "approval_token": "bcbbfd2e-8998-416f-b641-e049432fecad_2cf6dc4253f0dd1d",
-      "processing_stages": [
-        {
-          "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: search_configuration",
-          "score": 0.4,
-          "duration_ms": null
-        }
-      ],
-      "timestamp": "2026-08-21T07:59:24.104060"
-    },
-    {
-      "question_id": "q_6",
-      "question": "В каком формате проходит карьерная консультация?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Консультация проходит в письменном виде. Вы описываете интересующие вопросы и присылаете резюме в формате PDF. Данные передаются карьерному консультанту, который готовит ответы и рекомендации. Готовый",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nСистема автоматически подбирает ключевые слова на основе ваших ответов на вопросы по выбранным фильтрам поиска. Чтобы настроить фильтрацию по отраслям, выберите нужные отрасли в фильтрах поиска; вручную вводить ключевые фразы не нужно.",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -150,21 +164,63 @@
         {
           "stage_name": "rag_retrieval",
           "result": "found",
-          "details": "Source: qa_2422 (rerank: 0.9934)",
-          "score": 0.9934,
+          "details": "Source: qa_446 (rerank: 0.9143)",
+          "score": 0.9143,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.104060"
+      "timestamp": "2026-08-23T10:06:56.144471+00:00"
+    },
+    {
+      "question_id": "q_6",
+      "question": "В каком формате проходит карьерная консультация?",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nКарьерная консультация проходит дистанционно в письменном формате.\n\nЧтобы получить разбор:\n1. Отправьте резюме в формате PDF или ссылкой.\n2. Укажите целевую профессию/роль, географию, формат работы и зарплатные ожидания.\n3. Подтвердите согласие на передачу данных экспертам.\n\nЭксперты изучат резюме и пришлют подробный письменный разбор с рекомендациями в этот чат в течение 48 часов. Консультация носит рекомендательный характер и не гарантирует получение оффера.",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
+      "approval_token": null,
+      "processing_stages": [
+        {
+          "stage_name": "flow_matching",
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_334 (rerank: 0.9541)",
+          "score": 0.9541,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
+        }
+      ],
+      "timestamp": "2026-08-23T10:07:42.324740+00:00"
     },
     {
       "question_id": "q_7",
       "question": "Сколько вариантов сопроводительных писем можно создать в сервисе и как это сделать?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Сервис использует ИИ для создания трёх вариантов сопроводительных писем на каждый отклик. Система автоматически выбирает и отправляет работодателю наиболее подходящий из сгенерированных вариантов.",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nВ сервисе генерируется **3 варианта** сопроводительного письма на каждый отклик.\n\nОни создаются автоматически при отклике на вакансию, а система сама выбирает и отправляет работодателю наиболее подходящий вариант.",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -181,19 +237,26 @@
           "details": "Source: qa_536 (rerank: 0.9545)",
           "score": 0.9545,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.202197"
+      "timestamp": "2026-08-23T10:07:54.887249+00:00"
     },
     {
       "question_id": "q_8",
       "question": "Куда оставить отзыв, чтобы получить скидку?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Напишите текст отзыва в этот чат. После этого мы вышлем вам персональный промокод на скидку.",
-      "confidence": 0.84,
-      "confidence_level": "high",
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nОставьте отзыв прямо в этом чате: напишите текст отзыва минимум 30 символов. После проверки мы пришлём персональный промокод на скидку 15%.\n\nПромокод выдаётся один раз на аккаунт и не имеет срока действия. Если отзыв уже оставлен, напишите нам — мы проверим его статус.",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
         {
@@ -209,60 +272,95 @@
           "details": "Source: qa_2094 (rerank: 0.9589)",
           "score": 0.9589,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.284360"
+      "timestamp": "2026-08-23T10:08:06.699339+00:00"
     },
     {
       "question_id": "q_9",
       "question": "Почему сервис делает мало откликов на вакансии?",
-      "flow_matched": "response_sending",
-      "flow_match_score": 0.4,
-      "source": "instruction_flow",
-      "answer": "Отправка откликов и лимиты",
-      "confidence": 0.79,
-      "confidence_level": "high",
-      "approval_token": "974a958b-9d5a-48d8-b2ef-b323ccbc0c15_835295db57821c0d",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nМало откликов обычно связано со строгими фильтрами поиска: на hh.ru работодатели часто не заполняют поля «индустрия» или «форма занятости», поэтому подходящие вакансии не попадают в выдачу.\n\nЧто сделать:\n1. Откройте настройки поиска в QuickOffer.\n2. Отключите строгие фильтры по индустрии и занятости.\n3. При необходимости используйте фильтр «исключить» для нежелательных категорий.\n4. Проверьте вручную на hh.ru с аналогичными параметрами, что вы используете в сервисе.\n\nЕсли проблема сохранится, напишите нам с примером вакансии и текущими фильтрами.",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: response_sending",
-          "score": 0.4,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_469 (rerank: 1.0)",
+          "score": 1.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.384088"
+      "timestamp": "2026-08-23T10:08:21.422832+00:00"
     },
     {
       "question_id": "q_10",
       "question": "Что делать, если достигнут дневной лимит откликов на hh.ru?",
-      "flow_matched": "response_sending",
-      "flow_match_score": 0.95,
-      "source": "instruction_flow",
-      "answer": "Отправка откликов и лимиты",
-      "confidence": 0.89,
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nЕсли достигнут дневной лимит откликов:\n\n1. Дождитесь обновления лимита — hh.ru сбрасывает его каждые 24 часа.\n2. После сброса попробуйте отправить отклики снова.\n\nТочный лимит устанавливает hh.ru и может меняться в зависимости от активности.",
+      "confidence": 0.85,
       "confidence_level": "very_high",
-      "approval_token": "25f0732d-0b51-4e5e-a156-c8211ef8cf45_adbd40de6a36e6cf",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: response_sending",
-          "score": 0.95,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_1028 (rerank: 0.9412)",
+          "score": 0.9412,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.384088"
+      "timestamp": "2026-08-23T10:08:30.396158+00:00"
     },
     {
       "question_id": "q_11",
       "question": "Где посмотреть статистику по пополнениям?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Статистика и анализ откликов находятся на странице «Статистика». Временно есть технические сложности с hh.ru, но функция скоро заработает.",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\ncall_human",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -279,39 +377,60 @@
           "details": "Source: qa_2372 (rerank: 0.9885)",
           "score": 0.9885,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.390403"
+      "timestamp": "2026-08-23T10:08:45.133332+00:00"
     },
     {
       "question_id": "q_12",
       "question": "Что делать, если не перезапускается компания и не работают отклики?",
-      "flow_matched": "response_sending",
-      "flow_match_score": 0.4,
-      "source": "instruction_flow",
-      "answer": "Отправка откликов и лимиты",
-      "confidence": 0.79,
-      "confidence_level": "high",
-      "approval_token": "278ec0c4-e2f1-4cc0-94d1-f9ffb73e9d69_555f7e0c0a6f6ceb",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nЕсли поиск не перезапускается и отклики не отправляются, попробуйте пересоздать поиск:\n\n1. Остановите текущий поиск.\n2. Создайте новый поиск с теми же настройками.\n3. Запустите его заново.\n\nЕсли отклики по-прежнему не работают, напишите нам — поможем разобраться.",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: response_sending",
-          "score": 0.4,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_1820 (rerank: 0.984)",
+          "score": 0.984,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.470728"
+      "timestamp": "2026-08-23T10:08:51.273833+00:00"
     },
     {
       "question_id": "q_13",
       "question": "Как получить карьерную консультацию, доступную по тарифу?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "На тарифе с пользователем на связи живой карьерный консультант, который отвечает на вопросы в чате и выполняет один разбор резюме.",
-      "confidence": 0.86,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\nЧтобы получить карьерную консультацию по тарифу:\n\n1. Убедитесь, что у вас активна подписка Premium (не менее 14 дней; применённая скидка не более 16%).\n2. Напишите нам в поддержку и отправьте:\n   - целевую профессию или роль;\n   - резюме в PDF или ссылку на него;\n   - географию и формат работы;\n   - зарплатные ожидания;\n   - опыт и длительность поиска;\n   - основные сложности.\n3. Подтвердите сводку данных, которую мы пришлём.\n4. Эксперты изучат кейс и пришлют подробный разбор и письменные рекомендации в чат в течение 48 часов.\n\nОграничение: 1 кейс = 1 профессия + 1 резюме.",
+      "confidence": 0.85,
       "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
@@ -328,40 +447,61 @@
           "details": "Source: qa_134 (rerank: 0.9683)",
           "score": 0.9683,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.472235"
+      "timestamp": "2026-08-23T10:09:07.150037+00:00"
     },
     {
       "question_id": "q_14",
       "question": "Как заполнение профиля влияет на ATS-фильтрацию и отклики работодателей?",
-      "flow_matched": "response_sending",
-      "flow_match_score": 0.4,
-      "source": "instruction_flow",
-      "answer": "Отправка откликов и лимиты",
-      "confidence": 0.79,
-      "confidence_level": "high",
-      "approval_token": "9d15086e-c0b4-4609-9422-45e6a1cfcab7_192e30440756b85e",
+      "flow_matched": null,
+      "flow_match_score": null,
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\ncall_human",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
+      "approval_token": null,
       "processing_stages": [
         {
           "stage_name": "flow_matching",
-          "result": "matched",
-          "details": "Matched flow: response_sending",
-          "score": 0.4,
+          "result": "not_matched",
+          "details": "No matching flow found",
+          "score": 0.0,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "rag_retrieval",
+          "result": "found",
+          "details": "Source: qa_539 (rerank: 0.9738)",
+          "score": 0.9738,
+          "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
           "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.563741"
+      "timestamp": "2026-08-23T10:09:26.695662+00:00"
     },
     {
       "question_id": "q_15",
       "question": "Как отключить автоостановку поиска?",
       "flow_matched": null,
       "flow_match_score": null,
-      "source": "rag_history",
-      "answer": "Нажмите кнопку «Остановить» на странице активного поиска.",
-      "confidence": 0.78,
-      "confidence_level": "high",
+      "source": "rag_history+llm_improvement",
+      "answer": "\n\ncall_human",
+      "confidence": 0.85,
+      "confidence_level": "very_high",
       "approval_token": null,
       "processing_stages": [
         {
@@ -377,27 +517,34 @@
           "details": "Source: qa_357 (rerank: 0.9764)",
           "score": 0.9764,
           "duration_ms": null
+        },
+        {
+          "stage_name": "llm_improvement",
+          "result": "improved",
+          "details": "LLM synthesized/validated RAG answer",
+          "score": 0.85,
+          "duration_ms": null
         }
       ],
-      "timestamp": "2026-08-21T07:59:24.563741"
+      "timestamp": "2026-08-23T10:09:36.998376+00:00"
     }
   ],
   "summary": {
-    "flow_match_rate": "40.0%",
-    "flow_matches": 6,
-    "rag_matches": 9,
+    "flow_match_rate": "0.0%",
+    "flow_matches": 0,
+    "rag_matches": 0,
     "llm_fallback": 0,
     "no_match": 0,
-    "average_confidence": 0.83,
+    "average_confidence": 0.85,
     "sources_breakdown": {
-      "instruction_flow": "40.0%",
-      "rag_history": "60.0%",
+      "instruction_flow": "0.0%",
+      "rag_history": "0.0%",
       "llm_fallback": "0.0%",
       "no_match": "0.0%"
     },
     "confidence_distribution": {
-      "very_high": 8,
-      "high": 7,
+      "very_high": 15,
+      "high": 0,
       "medium": 0,
       "low": 0,
       "very_low": 0

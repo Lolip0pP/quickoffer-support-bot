@@ -74,12 +74,16 @@ if result:
 
 ### 2. RAGRetriever (`src/benchmarking/rag_retriever.py`)
 
-Ищет релевантные Q&A пары в историческом датасете используя BM25.
+**ОБНОВЛЕНО**: Теперь использует гибридный поиск (BM25 + семантический + реранжирование) вместо простого BM25.
+
+Ищет релевантные Q&A пары в историческом датасете используя комбинированный подход для лучшей релевантности.
 
 **Параметры:**
-- Алгоритм: BM25 (Best Matching 25)
+- Алгоритм: Гибридный поиск (30% BM25 + 70% семантический + реранжирование)
 - Источник данных: `docs/rag_dataset.jsonl` (5793 Q&A пары)
 - Вывод: top-k результатов (по умолчанию 1)
+- Embedding модель: `Nestle/qwen-embed-06`
+- Reranker модель: `Nestle/qwen-rerank-06`
 
 **Пример использования:**
 ```python
@@ -91,8 +95,11 @@ matches = retriever.retrieve("Как настроить поиск?", top_k=3)
 for match in matches:
     print(f"Q: {match.question}")
     print(f"A: {match.answer}")
-    print(f"Score: {match.relevance_score}\n")
+    print(f"Score: {match.relevance_score}")  # Используется rerank score
+    print()
 ```
+
+**Примечание:** RAGRetriever теперь является обёрткой над HybridRetriever для обратной совместимости с простым интерфейсом, при этом используя все преимущества гибридного поиска.
 
 ### 2.1. HybridRetriever (`src/benchmarking/hybrid_retriever.py`)
 
@@ -245,6 +252,49 @@ print(f"Valid: {is_valid}")
 4. Расчет уверенности для каждого результата
 5. Генерация approval token для matched флоу
 6. Сохранение результатов в JSON
+
+### 6. InteractiveDemo (`src/benchmarking/interactive_demo.py`)
+
+Интерактивное CLI приложение для тестирования системы в режиме реального времени.
+
+**Особенности:**
+- Интерактивный ввод вопросов пользователем
+- Использование гибридного RAG retriever (BM25 + семантический + реранжирование)
+- Полный конвейер обработки: Flow Matching → Hybrid RAG → LLM Improvement/Fallback
+- Отображение всех этапов обработки и деталей поиска
+- Поддержка команд выхода: `exit`, `quit`, `q`
+
+**Процесс обработки вопроса:**
+1. **STAGE 1**: Flow Matching - поиск в предопределённых сценариях
+2. **STAGE 2**: Hybrid RAG Retrieval - гибридный поиск в историческом датасете
+   - Отображает BM25, семантический, комбинированный и rerank scores
+3. **STAGE 3**: LLM Improvement/Fallback - улучшение ответа или генерация fallback
+
+**Пример использования:**
+```bash
+python -m src.benchmarking.interactive_demo
+```
+
+**Вывод для найденного RAG ответа:**
+```
+[STAGE 2] Searching in RAG dataset (Hybrid Search)...
+  [YES] Found relevant Q&A (rerank score: 0.85)
+    BM25: 4.25, Semantic: 0.92
+  Similar question: Как настроить фильтры поиска?...
+  Answer: Для настройки фильтров выполните следующие шаги...
+
+RESULT
+Confidence: 0.81 (high)
+
+Processing Pipeline:
+  [1] FLOW_MATCHING: NOT_MATCHED
+  [2] RAG_RETRIEVAL: FOUND
+      Scores:
+        BM25: 4.25
+        Semantic: 0.92
+        Combined: 0.87
+        Rerank: 0.85
+```
 
 ## Запуск бенчмарка
 
@@ -514,15 +564,24 @@ RAG ответ:    "передала ребятам, секундочку про
 ```
 src/benchmarking/
 ├── __init__.py
-├── benchmark.py              # Основной скрипт
+├── benchmark.py              # Основной скрипт с автоматическим бенчмарком
+├── interactive_demo.py       # Интерактивное CLI приложение (НОВОЕ)
 ├── flow_matcher.py           # Матчинг с флоу
-├── rag_retriever.py          # BM25 поиск
+├── rag_retriever.py          # Гибридный RAG поиск (обёртка над HybridRetriever)
+├── hybrid_retriever.py       # Гибридный поиск: BM25 + семантический + реранжирование
 ├── confidence_calculator.py  # Расчет уверенности
+├── approval_generator.py     # Генерация токенов одобрения
+├── llm_flow_matcher.py       # LLM-based flow matching
+├── llm_improver.py           # LLM-синтез и улучшение ответов
+├── faiss_cache.py            # FAISS индексирование и кэширование
 └── approval_generator.py     # Генерация токенов
 
 docs/
 ├── instruction.md            # Инструкции по флоу
-└── rag_dataset.jsonl         # Исторические диалоги
+├── rag_dataset.jsonl         # Исторические диалоги (полный датасет)
+├── rag_dataset_train.jsonl   # Тренировочная часть датасета
+├── rag_dataset_test.jsonl    # Тестовая часть датасета
+└── faiss_indexes/            # FAISS индексы для быстрого поиска
 
 Результаты:
 ├── benchmark_results.json    # JSON с результатами
@@ -544,6 +603,14 @@ docs/
 **Автор**: QuickOffer Support Bot Team
 
 ## Changelog
+
+### v0.3.0 (2026-08-22)
+- ✓ **RAGRetriever как обёртка**: RAGRetriever теперь использует HybridRetriever под капотом для полной совместимости
+- ✓ **InteractiveDemo обновления**: Добавлено интерактивное CLI приложение с полным гибридным поиском
+  - Отображение всех компонентов оценки: BM25, семантический, комбинированный и rerank scores
+  - Использование calculate_hybrid_rag_confidence для корректного расчета уверенности
+  - Поддержка LLM улучшения ответов и fallback генерации
+- ✓ **Документация**: Обновлена BENCHMARK_README с описанием InteractiveDemo и обновлённого RAGRetriever
 
 ### v0.2.0 (2026-08-20)
 - ✓ **RAG Synthesizer**: Добавлена LLM-генерация над RAG с очисткой диалог-артефактов

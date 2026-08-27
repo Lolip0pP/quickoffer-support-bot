@@ -198,7 +198,7 @@ class HybridRetriever:
 
     def __init__(
         self,
-        dataset_path: str = "docs/rag_dataset.jsonl",
+        dataset_path: str = "docs/rag_dataset_train.jsonl",
         base_url: str = "https://litellm.ai.nestle.ru/v1",
         api_key: str = "",
         embedding_model: str = "Nestle/qwen-embed-06",
@@ -372,6 +372,47 @@ class HybridRetriever:
 
         return scores
 
+    def _compute_semantic_scores_faiss(
+        self, query_embedding: np.ndarray, top_k: int = 10
+    ) -> dict[int, float]:
+        """Compute semantic similarity scores using FAISS for fast search.
+
+        Args:
+            query_embedding: Query embedding vector.
+            top_k: Number of top results to consider.
+
+        Returns:
+            Dictionary mapping document index to semantic score (0-1 normalized).
+        """
+        scores = {}
+
+        # Try FAISS search if available
+        if self.use_faiss and self.faiss_cache.index is not None:
+            try:
+                faiss_results = self.faiss_cache.search(query_embedding, top_k)
+                for doc_idx, distance in faiss_results:
+                    # Convert L2 distance to similarity score (0-1)
+                    # L2 distance range: 0-2 for normalized vectors, normalize to 0-1
+                    similarity_score = max(0.0, 1.0 - (distance / 2.0))
+                    scores[doc_idx] = float(similarity_score)
+                return scores
+            except Exception as e:
+                logger.warning(f"FAISS search failed: {e}, falling back to full scan")
+
+        # Fallback: manual cosine similarity on all documents
+        for idx, doc_embedding in enumerate(self.document_embeddings):
+            if doc_embedding is None:
+                scores[idx] = 0.0
+                continue
+
+            similarity = cosine_similarity(
+                query_embedding.reshape(1, -1), doc_embedding.reshape(1, -1)
+            )[0][0]
+            normalized_similarity = (similarity + 1) / 2
+            scores[idx] = float(normalized_similarity)
+
+        return scores
+
     def retrieve(self, query: str, top_k: int = 3) -> list[HybridRAGMatch]:
         """Retrieve relevant Q&A pairs using hybrid search.
 
@@ -397,15 +438,20 @@ class HybridRetriever:
 
         # STEP 2: Semantic scoring
         query_embedding = self._get_query_embedding(query)
-        semantic_scores = {}
+        semantic_scores: dict[int, float] = {}
 
         if query_embedding is not None:
-            semantic_scores = self._compute_semantic_scores(
+            # Use FAISS-backed semantic scoring. When embeddings are loaded
+            # from the FAISS cache, ``self.document_embeddings`` is empty, so
+            # the plain full-scan path would silently return zeros. The FAISS
+            # path queries the persisted index directly.
+            semantic_scores = self._compute_semantic_scores_faiss(
                 query_embedding, top_k=len(top_indices)
             )
         else:
             logger.warning("Failed to get query embedding, using BM25 only")
             semantic_scores = {i: 0.0 for i in top_indices}
+
 
         # STEP 3: Combine scores (BM25 30% + Semantic 70%)
         combined_scores: dict[int, float] = {}

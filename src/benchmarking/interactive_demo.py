@@ -1,19 +1,23 @@
 """Interactive CLI demo - allows user to input questions and see bot responses."""
 
-import json
 import logging
+import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-from src.benchmarking.confidence_calculator import ConfidenceCalculator
-from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
-from src.benchmarking.llm_improver import LLMImprover
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
 from src.benchmarking.approval_generator import ApprovalTokenGenerator
-from src.benchmarking.rag_retriever import RAGRetriever
+from src.benchmarking.confidence_calculator import ConfidenceCalculator
+from src.benchmarking.hybrid_retriever import HybridRetriever
+from src.benchmarking.intent_router import IntentRouter
+from src.benchmarking.llm_improver import LLMImprover
+from src.benchmarking.processing_phases import OperationPhase, ProcessingMode
 
-# Setup logging (minimal output)
+# Setup logging
 logging.basicConfig(
-    level=logging.WARNING,
+    level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -29,8 +33,21 @@ class InteractiveDemo:
         print("=" * 80)
         print("\nInitializing components...")
 
-        self.flow_matcher = LLMFlowMatcher()
-        self.rag_retriever = RAGRetriever("docs/rag_dataset_train.jsonl")
+        self.intent_router = IntentRouter()
+
+        # Initialize hybrid retriever with environment variables
+        llm_base_url = os.getenv(
+            "LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1"
+        )
+        llm_api_key = os.getenv("LLM_PROVIDER_KEY", "")
+
+        self.hybrid_retriever = HybridRetriever(
+            dataset_path="docs/rag_dataset.jsonl",
+            base_url=llm_base_url,
+            api_key=llm_api_key,
+            use_reranker=True,
+        )
+
         self.llm_improver = LLMImprover()
         self.approval_generator = ApprovalTokenGenerator()
 
@@ -46,126 +63,196 @@ class InteractiveDemo:
         Returns:
             Dictionary with processing results.
         """
-        result = {
-            "question": question,
-            "stages": [],
-            "final_answer": None,
-            "confidence": 0.0,
-            "confidence_level": "very_low",
-            "approval_token": None,
-        }
+        print("\n" + "=" * 80)
+        print("[PHASE 1] INTENT CLASSIFICATION")
+        print("=" * 80)
 
-        # STAGE 1: Flow Matching
-        print("\n[STAGE 1] Matching with instruction flows...")
-        flow_match = self.flow_matcher.match(question)
+        # PHASE 1: Intent Classification (MODE_A vs MODE_B)
+        context = self.intent_router.route(question)
+        context.add_phase_log(
+            OperationPhase.INTENT_CLASSIFICATION,
+            status="success",
+            details={
+                "mode": context.processing_mode.value,
+                "flow_type": context.flow_type.value if context.flow_type else None,
+                "confidence": f"{context.confidence:.2f}",
+            },
+        )
 
-        if flow_match:
-            print(f"  [YES] Flow matched: {flow_match.flow_name}")
-            print(f"  Confidence: {flow_match.match_score}")
-            print(f"  Description: {flow_match.flow_description}")
+        print(f"\nProcessing Mode: {context.processing_mode.value.upper()}")
+        if context.flow_type:
+            print(f"Flow Type: {context.flow_type.value.upper()}")
+        print(f"Confidence: {context.confidence:.2f}")
 
-            result["stages"].append({
-                "name": "flow_matching",
-                "result": "matched",
-                "flow_name": flow_match.flow_name,
-                "score": flow_match.match_score,
-            })
+        # Display expected tools for MODE_A
+        if context.processing_mode == ProcessingMode.MODE_A_DETERMINISTIC:
+            print("\nExpected Operations:")
+            for i, tool in enumerate(context.expected_tools, 1):
+                approval_str = (
+                    " (requires approval)" if tool.requires_approval else ""
+                )
+                print(f"  {i}. {tool.description}{approval_str}")
 
-            result["final_answer"] = flow_match.flow_description
-            result["confidence"] = ConfidenceCalculator.calculate_flow_confidence(
-                flow_match.match_score
+            if context.requires_staff_approval:
+                print("\n⚠️  Staff Approval Required: YES")
+
+            # PHASE 2: State Machine Initialization (MODE_A only)
+            print("\n" + "=" * 80)
+            print("[PHASE 2] STATE MACHINE INITIALIZATION")
+            print("=" * 80)
+            print(f"\nFlow: {context.flow_type.value.upper()}")
+            print("Initial State: IDENTIFY")
+            print(f"Approval Required: {context.requires_staff_approval}")
+
+            context.add_phase_log(
+                OperationPhase.STATE_MACHINE_INIT,
+                status="success",
+                details={
+                    "flow": context.flow_type.value,
+                    "state": "IDENTIFY",
+                    "tools_count": len(context.expected_tools),
+                },
             )
-            result["approval_token"] = (
-                self.approval_generator.generate_benchmark_token(flow_match.flow_name)
+
+            # Generate approval token if needed
+            if context.requires_staff_approval:
+                context.approval_token = (
+                    self.approval_generator.generate_benchmark_token(
+                        context.flow_type.value
+                    )
+                )
+                print(f"Approval Token: {context.approval_token[:32]}...")
+
+            # PHASE 3: Tool Execution (MODE_A only)
+            print("\n" + "=" * 80)
+            print("[PHASE 3] TOOL EXECUTION (SIMULATED)")
+            print("=" * 80)
+            print("\nSimulating state machine progression:")
+            for i, tool in enumerate(context.expected_tools, 1):
+                status_icon = "✓"
+                print(f"  {status_icon} [{i}] {tool.description}")
+                # Simulate tool execution
+                tool.status = "success"
+                context.add_executed_tool(tool)
+
+            context.add_phase_log(
+                OperationPhase.TOOL_EXECUTION,
+                status="success",
+                details={"tools_executed": len(context.executed_tools)},
+            )
+
+            print(
+                f"\n✓ All {len(context.executed_tools)} tools executed successfully"
+            )
+            context.final_answer = (
+                f"State machine for {context.flow_type.value} completed successfully. "
+                f"Awaiting staff approval for critical operations."
+            )
+            context.add_phase_log(
+                OperationPhase.HANDOFF,
+                status="pending" if context.requires_staff_approval else "skipped",
+                details={"requires_approval": context.requires_staff_approval},
             )
 
         else:
-            print("  [NO] No flow matched, proceeding to RAG retrieval...")
+            # MODE_B: RAG + LLM Investigation
+            print("\n" + "=" * 80)
+            print("[PHASE 2] RAG RETRIEVAL")
+            print("=" * 80)
+            print("\nSearching in RAG dataset (Hybrid Search)...")
 
-            result["stages"].append({
-                "name": "flow_matching",
-                "result": "not_matched",
-            })
+            hybrid_matches = self.hybrid_retriever.retrieve(question, top_k=1)
 
-            # STAGE 2: RAG Retrieval
-            print("\n[STAGE 2] Searching in RAG dataset (BM25)...")
-            rag_matches = self.rag_retriever.retrieve(question, top_k=3)
-
-            if rag_matches:
-                top_match = rag_matches[0]
-                print(f"  [YES] Found relevant Q&A (relevance: {top_match.relevance_score})")
+            if hybrid_matches:
+                top_match = hybrid_matches[0]
+                print(f"\n✓ Found relevant Q&A")
+                print(f"  BM25 Score: {top_match.bm25_score:.2f}")
+                print(f"  Semantic Score: {top_match.semantic_score:.2f}")
+                print(f"  Rerank Score: {top_match.rerank_score:.2f}")
                 print(f"  Similar question: {top_match.question[:80]}...")
-                print(f"  Answer: {top_match.answer[:100]}...")
 
-                result["stages"].append({
-                    "name": "rag_retrieval",
-                    "result": "found",
-                    "similar_question": top_match.question,
-                    "relevance_score": top_match.relevance_score,
-                })
-
-                result["final_answer"] = top_match.answer
-                confidence = ConfidenceCalculator.calculate_rag_confidence(
-                    top_match.relevance_score, len(top_match.answer)
+                context.add_phase_log(
+                    OperationPhase.RAG_RETRIEVAL,
+                    status="success",
+                    details={
+                        "bm25_score": f"{top_match.bm25_score:.2f}",
+                        "semantic_score": f"{top_match.semantic_score:.2f}",
+                        "rerank_score": f"{top_match.rerank_score:.2f}",
+                    },
                 )
-                result["confidence"] = confidence
 
-                # STAGE 3: LLM Improvement (if needed)
+                context.final_answer = top_match.answer
+                confidence = ConfidenceCalculator.calculate_hybrid_rag_confidence(
+                    top_match.rerank_score, len(top_match.answer)
+                )
+                context.confidence = confidence
+
+                # PHASE 3: LLM Improvement (if needed)
                 if confidence < 0.65:
-                    print(f"\n[STAGE 3] Confidence too low ({confidence})")
-                    print("  Attempting LLM improvement...")
+                    print(f"\n[PHASE 3] LLM IMPROVEMENT")
+                    print("=" * 80)
+                    print(f"\nConfidence too low ({confidence:.2f})")
+                    print("Attempting LLM improvement...")
+
                     improved_answer, improved_confidence = (
                         self.llm_improver.improve_answer(
-                            question, result["final_answer"], confidence
+                            question, context.final_answer, confidence
                         )
                     )
 
-                    print(f"  [YES] LLM improved answer")
-                    print(f"  Confidence: {confidence} -> {improved_confidence}")
+                    print(f"✓ LLM improved answer")
+                    print(f"  Confidence: {confidence:.2f} → {improved_confidence:.2f}")
 
-                    result["stages"].append({
-                        "name": "llm_improvement",
-                        "result": "improved",
-                        "original_confidence": confidence,
-                        "improved_confidence": improved_confidence,
-                    })
+                    context.add_phase_log(
+                        OperationPhase.LLM_GENERATION,
+                        status="success",
+                        details={
+                            "original_confidence": f"{confidence:.2f}",
+                            "improved_confidence": f"{improved_confidence:.2f}",
+                        },
+                    )
 
-                    result["final_answer"] = improved_answer
-                    result["confidence"] = improved_confidence
+                    context.final_answer = improved_answer
+                    context.confidence = improved_confidence
 
             else:
-                print("  [NO] No relevant Q&A found in knowledge base")
+                print("\n✗ No relevant Q&A found in knowledge base")
 
-                result["stages"].append({
-                    "name": "rag_retrieval",
-                    "result": "not_found",
-                })
+                context.add_phase_log(
+                    OperationPhase.RAG_RETRIEVAL,
+                    status="not_found",
+                    details={},
+                )
 
-                # STAGE 3: LLM Fallback
-                print("\n[STAGE 3] Attempting LLM fallback generation...")
+                # PHASE 3: LLM Fallback
+                print("\n[PHASE 3] LLM FALLBACK GENERATION")
+                print("=" * 80)
+                print("\nAttempting LLM fallback generation...")
+
                 fallback_answer, fallback_confidence = (
                     self.llm_improver.improve_answer(
                         question, "No information found in knowledge base.", 0.0
                     )
                 )
 
-                print(f"  [YES] LLM generated fallback answer")
-                print(f"  Confidence: {fallback_confidence}")
+                print(f"✓ LLM generated fallback answer")
+                print(f"  Confidence: {fallback_confidence:.2f}")
 
-                result["stages"].append({
-                    "name": "llm_fallback",
-                    "result": "generated",
-                    "confidence": fallback_confidence,
-                })
+                context.add_phase_log(
+                    OperationPhase.LLM_GENERATION,
+                    status="success",
+                    details={"type": "fallback", "confidence": f"{fallback_confidence:.2f}"},
+                )
 
-                result["final_answer"] = fallback_answer
-                result["confidence"] = fallback_confidence
+                context.final_answer = fallback_answer
+                context.confidence = fallback_confidence
 
-        result["confidence_level"] = ConfidenceCalculator.get_confidence_level(
-            result["confidence"]
-        )
-
-        return result
+        return {
+            "context": context,
+            "confidence_level": ConfidenceCalculator.get_confidence_level(
+                context.confidence
+            ),
+        }
 
     def display_result(self, result: dict) -> None:
         """Display processing result in a user-friendly format.
@@ -173,35 +260,37 @@ class InteractiveDemo:
         Args:
             result: Processing result dictionary.
         """
+        context = result["context"]
+
         print("\n" + "=" * 80)
         print("RESULT")
         print("=" * 80)
 
-        print(f"\nFinal Answer:\n{result['final_answer']}")
+        print(f"\nFinal Answer:\n{context.final_answer}")
 
         print(
-            f"\nConfidence: {result['confidence']:.2f} ({result['confidence_level']})"
+            f"\nConfidence: {context.confidence:.2f} ({result['confidence_level']})"
         )
 
-        if result["approval_token"]:
-            print(f"Approval Token: {result['approval_token'][:32]}...")
+        if context.approval_token:
+            print(f"Approval Token: {context.approval_token[:32]}...")
 
-        print("\nProcessing Pipeline:")
-        for i, stage in enumerate(result["stages"], 1):
-            stage_name = stage["name"].upper()
-            stage_result = stage["result"].upper()
-            print(f"  [{i}] {stage_name}: {stage_result}")
+        if context.handoff_triggered:
+            print(
+                f"\n⚠️  Handoff Triggered: {context.handoff_reason}"
+            )
 
-            if stage["name"] == "rag_retrieval" and stage["result"] == "found":
-                print(f"      Relevance: {stage['relevance_score']}")
-
-            if stage["name"] == "llm_improvement":
-                print(
-                    f"      Confidence: {stage['original_confidence']:.2f} -> "
-                    f"{stage['improved_confidence']:.2f}"
-                )
-
+        # Summary table
+        print("\n" + "=" * 80)
+        print("PROCESSING SUMMARY")
         print("=" * 80)
+        print(f"Mode: {context.processing_mode.value}")
+        if context.flow_type:
+            print(f"Flow: {context.flow_type.value}")
+        print(f"Confidence: {context.confidence:.2f}")
+        print(f"Phases: {len(context.phases)}")
+        print(f"Expected Tools: {len(context.expected_tools)}")
+        print(f"Executed Tools: {len(context.executed_tools)}")
 
     def run(self) -> None:
         """Run the interactive demo loop."""

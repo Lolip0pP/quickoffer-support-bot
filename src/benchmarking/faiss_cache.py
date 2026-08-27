@@ -12,6 +12,26 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
+    """L2-normalize a 2D array of row vectors.
+
+    Normalizing before indexing lets us treat the FAISS L2 distance as a
+    monotonic function of cosine similarity: for unit vectors,
+    ``L2^2 = 2 - 2 * cos``, so ``similarity = 1 - L2^2 / 2 = cos``.
+
+    Args:
+        vectors: Array of shape (n, dim).
+
+    Returns:
+        L2-normalized array of the same shape (float32).
+    """
+    vectors = np.asarray(vectors, dtype=np.float32)
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    return vectors / norms
+
+
+
 class FAISSEmbeddingCache:
     """Manages FAISS index for fast nearest neighbor search of embeddings."""
 
@@ -70,21 +90,26 @@ class FAISSEmbeddingCache:
             logger.warning("No valid embeddings to index")
             return
 
-        # Convert to numpy array
-        embeddings_array = np.array(valid_embeddings, dtype=np.float32)
+        # Convert to numpy array and L2-normalize so that L2 distance maps
+        # directly onto cosine similarity (see ``_l2_normalize`` docstring).
+        embeddings_array = _l2_normalize(np.array(valid_embeddings, dtype=np.float32))
 
-        # Create FAISS index (L2 distance - Euclidean)
+        # Create FAISS index (L2 distance - Euclidean, on unit vectors)
         embedding_dim = embeddings_array.shape[1]
         self.index = faiss.IndexFlatL2(embedding_dim)
         self.index.add(embeddings_array)
 
-        # Store metadata
+        # Store metadata. ``normalized`` marks indexes built with the cosine
+        # convention; older caches without it are rejected on load so they get
+        # rebuilt automatically.
         self.metadata = {
             "total_embeddings": len(embeddings),
             "valid_embeddings": len(valid_embeddings),
             "valid_indices": valid_indices,
             "embedding_dim": embedding_dim,
+            "normalized": True,
         }
+
 
         logger.info(
             f"Built FAISS index with {len(valid_embeddings)} "
@@ -137,12 +162,24 @@ class FAISSEmbeddingCache:
                 logger.debug(f"Index files not found for {dataset_name}")
                 return False
 
-            self.index = faiss.read_index(str(index_path))
-
             with open(metadata_path, "rb") as f:
-                self.metadata = pickle.load(f)
+                metadata = pickle.load(f)
+
+            # Reject legacy caches built before cosine normalization was
+            # introduced; returning False triggers a rebuild with the correct
+            # (normalized) convention.
+            if not metadata.get("normalized"):
+                logger.warning(
+                    f"FAISS cache '{dataset_name}' is un-normalized (legacy); "
+                    f"ignoring so it will be rebuilt with cosine normalization"
+                )
+                return False
+
+            self.index = faiss.read_index(str(index_path))
+            self.metadata = metadata
 
             logger.info(f"Loaded FAISS index from {index_path}")
+
             logger.info(
                 f"Index contains {self.metadata.get('valid_embeddings', 0)} "
                 f"valid embeddings"
@@ -170,11 +207,14 @@ class FAISSEmbeddingCache:
             return []
 
         try:
-            # Ensure query is float32
-            query = np.array([query_embedding], dtype=np.float32)
+            # Ensure query is float32 and L2-normalized to match the indexed
+            # unit vectors, so the returned squared-L2 distance equals
+            # ``2 - 2 * cos`` and can be converted back to cosine similarity.
+            query = _l2_normalize(np.array([query_embedding], dtype=np.float32))
 
             # Search in FAISS
             distances, indices = self.index.search(query, top_k)
+
 
             # FAISS returns distances and indices for the first (and only) query
             distances = distances[0]

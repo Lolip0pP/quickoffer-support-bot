@@ -1,16 +1,17 @@
-"""Main benchmark script - evaluates QA system on 10 test questions."""
+"""Main benchmark script - evaluates QA system on 15 test questions."""
 
 import json
 import logging
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
 
 from src.benchmarking.approval_generator import ApprovalTokenGenerator
 from src.benchmarking.confidence_calculator import (
@@ -21,15 +22,17 @@ from src.benchmarking.hybrid_retriever import HybridRetriever
 from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
 from src.benchmarking.llm_improver import LLMImprover
 
-# Setup logging
+# Setup logging. Use mode="w" so each run starts from a clean log file and
+# results from separate benchmark runs are never interleaved.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("benchmark.log"),
+        logging.FileHandler("benchmark.log", mode="w", encoding="utf-8"),
     ],
 )
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +62,8 @@ class BenchmarkResult:
     approval_token: Optional[str] = None
     processing_stages: list[ProcessingStage] = field(default_factory=list)
     logs: list[str] = field(default_factory=list)
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
     needs_staff_approval: bool = False
     escalation_type: Optional[str] = None
 
@@ -71,8 +75,11 @@ class BenchmarkResult:
             "flow_matched": self.flow_matched,
             "flow_match_score": self.flow_match_score,
             "source": self.source,
-            "answer": self.answer[:200] if self.answer else None,  # Truncate for JSON
+            # Store the full answer; truncating here previously cut answers
+            # mid-word in the saved report.
+            "answer": self.answer,
             "confidence": self.confidence,
+
             "confidence_level": self.confidence_level,
             "approval_token": self.approval_token,
             "processing_stages": [asdict(stage) for stage in self.processing_stages],
@@ -307,38 +314,48 @@ class Benchmark:
                     )
                 )
 
-                # STAGE 3: LLM Improvement (if confidence is low)
-                if confidence < 0.65:
-                    logger.info(
-                        f"\n[STAGE 3] Confidence too low ({confidence}), "
-                        f"attempting LLM improvement..."
+                # STAGE 3: LLM Synthesis (always, for Mode B).
+                # Historical RAG answers are raw support-dialog snippets that
+                # frequently answer a *different* question than the user's, or
+                # contain chat artifacts. We always run the improver so it can
+                # (a) verify relevance and defer with "call_human" when the
+                # retrieved answer does not match, and (b) adapt/clean the text
+                # for the specific question.
+                logger.info(
+                    f"\n[STAGE 3] Synthesizing RAG answer with LLM "
+                    f"(base confidence: {confidence})..."
+                )
+                improved_answer, improved_confidence = (
+                    self.llm_improver.improve_answer(
+                        question["text"],
+                        result.answer,
+                        confidence,
+                        always_improve=True,
+                        rag_context=f"retrieved question: {top_match.question}",
                     )
-                    improved_answer, improved_confidence = (
-                        self.llm_improver.improve_answer(
-                            question["text"], result.answer, confidence
-                        )
-                    )
+                )
 
-                    result.answer = improved_answer
-                    result.confidence = improved_confidence
-                    result.confidence_level = ConfidenceCalculator.get_confidence_level(
-                        improved_confidence
-                    )
-                    result.source = "rag_history+llm_improvement"
+                result.answer = improved_answer
+                result.confidence = improved_confidence
+                result.confidence_level = ConfidenceCalculator.get_confidence_level(
+                    improved_confidence
+                )
+                result.source = "rag_history+llm_improvement"
 
-                    logger.info(
-                        f"  [YES] LLM improved answer "
-                        f"(confidence: {confidence} -> {improved_confidence})"
-                    )
+                logger.info(
+                    f"  [YES] LLM synthesized answer "
+                    f"(confidence: {confidence} -> {improved_confidence})"
+                )
 
-                    result.processing_stages.append(
-                        ProcessingStage(
-                            stage_name="llm_improvement",
-                            result="improved",
-                            details=f"LLM enhanced weak RAG answer",
-                            score=improved_confidence,
-                        )
+                result.processing_stages.append(
+                    ProcessingStage(
+                        stage_name="llm_improvement",
+                        result="improved",
+                        details="LLM synthesized/validated RAG answer",
+                        score=improved_confidence,
                     )
+                )
+
 
             else:
                 logger.info("  [NO] No relevant Q&A found in RAG dataset")
@@ -413,8 +430,10 @@ class Benchmark:
         logger.info("STEP 2: PROCESSING QUESTIONS")
         logger.info(f"{'=' * 80}")
 
+        total_questions = len(test_questions)
         for i, question in enumerate(test_questions, 1):
-            logger.info(f"\n\n>>> QUESTION {i}/10 <<<")
+            logger.info(f"\n\n>>> QUESTION {i}/{total_questions} <<<")
+
             result = self.process_question(question)
             self.results.append(result)
 
@@ -455,7 +474,8 @@ class Benchmark:
 
         summary = {
             "benchmark_id": str(uuid.uuid4()),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
+
             "total_questions": total,
             "results": [r.to_dict() for r in self.results],
             "summary": {
