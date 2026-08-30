@@ -3,8 +3,8 @@
 import logging
 from typing import Optional
 
-from src.benchmarking.flow_matcher import FlowMatcher
-from src.benchmarking.processing_phases import (
+from src.services.processing.flow_matcher import FlowMatcher
+from src.services.processing.processing_phases import (
     FlowType,
     ProcessingContext,
     ProcessingMode,

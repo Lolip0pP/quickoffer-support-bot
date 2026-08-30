@@ -1,15 +1,15 @@
 """Performance test comparing sync vs async versions."""
 
 import asyncio
-import time
 import logging
-from pathlib import Path
 import sys
+import time
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from src.benchmarking.hybrid_retriever import HybridRetriever
-from src.benchmarking.llm_improver import LLMImprover
+from src.services.processing.hybrid_retriever import HybridRetriever
+from src.services.processing.llm_improver import LLMImprover
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,9 +45,7 @@ async def test_retriever_performance() -> None:
 
         # Concurrent queries
         start_time = time.time()
-        tasks = [
-            retriever.retrieve(query, top_k=3) for query in test_queries
-        ]
+        tasks = [retriever.retrieve(query, top_k=3) for query in test_queries]
         results = await asyncio.gather(*tasks)
         elapsed = time.time() - start_time
 

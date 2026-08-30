@@ -31,7 +31,6 @@ def _l2_normalize(vectors: np.ndarray) -> np.ndarray:
     return vectors / norms
 
 
-
 class FAISSEmbeddingCache:
     """Manages FAISS index for fast nearest neighbor search of embeddings."""
 
@@ -109,7 +108,6 @@ class FAISSEmbeddingCache:
             "embedding_dim": embedding_dim,
             "normalized": True,
         }
-
 
         logger.info(
             f"Built FAISS index with {len(valid_embeddings)} "
@@ -214,7 +212,6 @@ class FAISSEmbeddingCache:
 
             # Search in FAISS
             distances, indices = self.index.search(query, top_k)
-
 
             # FAISS returns distances and indices for the first (and only) query
             distances = distances[0]

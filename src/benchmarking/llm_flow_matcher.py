@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from src.benchmarking.flow_matcher import FlowMatch, FlowMatcher
+from src.services.processing.flow_matcher import FlowMatch, FlowMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,6 @@ If no flow matches well, set flow_name to null."""
 
             response_text = response.choices[0].message.content
 
-
             # Parse response
             import json
 
@@ -106,7 +105,6 @@ If no flow matches well, set flow_name to null."""
                     return None
 
                 flow_match = FlowMatch(
-
                     flow_name=flow_name,
                     matched_keywords=[
                         f"llm_detected: {result.get('reason', 'intent matched')}"
@@ -184,5 +182,3 @@ CLASSIFICATION RULES:
   mention a flow topic. Set flow_name to null for these.
 - If best match confidence < 0.8: classify as MODE_B (no deterministic flow)
 - For MODE_B questions: set flow_name to null"""
-
-

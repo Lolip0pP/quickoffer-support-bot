@@ -16,9 +16,7 @@ class ApprovalTokenGenerator:
     TOKEN_EXPIRY_MINUTES = 30
 
     @staticmethod
-    def generate_token(
-        action_id: str, staff_id: str, payload: dict[str, str]
-    ) -> str:
+    def generate_token(action_id: str, staff_id: str, payload: dict[str, str]) -> str:
         """Generate approval token for action execution.
 
         Args:
