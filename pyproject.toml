@@ -88,4 +88,3 @@ ignore_missing_imports = true
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = ["asyncio: marks a coroutine test"]
-asyncio_mode = "auto"

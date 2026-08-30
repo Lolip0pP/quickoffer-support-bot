@@ -2,25 +2,24 @@
 
 import json
 import logging
+import sys
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
-import sys
-from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 
-from src.benchmarking.approval_generator import ApprovalTokenGenerator
-from src.benchmarking.confidence_calculator import (
+from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
+from src.services.processing.approval_generator import ApprovalTokenGenerator
+from src.services.processing.confidence_calculator import (
     ConfidenceCalculator,
     ConfidenceSource,
 )
-from src.benchmarking.hybrid_retriever import HybridRetriever
-from src.benchmarking.llm_flow_matcher import LLMFlowMatcher
-from src.benchmarking.llm_improver import LLMImprover
+from src.services.processing.hybrid_retriever import HybridRetriever
+from src.services.processing.llm_improver import LLMImprover
 
 # Setup logging. Use mode="w" so each run starts from a clean log file and
 # results from separate benchmark runs are never interleaved.
@@ -79,7 +78,6 @@ class BenchmarkResult:
             # mid-word in the saved report.
             "answer": self.answer,
             "confidence": self.confidence,
-
             "confidence_level": self.confidence_level,
             "approval_token": self.approval_token,
             "processing_stages": [asdict(stage) for stage in self.processing_stages],
@@ -112,9 +110,7 @@ class Benchmark:
         # Initialize hybrid retriever with environment variables
         import os
 
-        llm_base_url = os.getenv(
-            "LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1"
-        )
+        llm_base_url = os.getenv("LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1")
         llm_api_key = os.getenv("LLM_PROVIDER_KEY", "")
 
         self.hybrid_retriever = HybridRetriever(
@@ -288,7 +284,9 @@ class Benchmark:
                 logger.info(
                     f"  [YES] RAG MATCH FOUND (rerank score: {top_match.rerank_score})"
                 )
-                logger.info(f"    BM25: {top_match.bm25_score}, Semantic: {top_match.semantic_score}")
+                logger.info(
+                    f"    BM25: {top_match.bm25_score}, Semantic: {top_match.semantic_score}"
+                )
                 logger.info(f"    Original Q: {top_match.question[:70]}...")
                 logger.info(f"    Answer: {top_match.answer[:100]}...")
 
@@ -325,14 +323,12 @@ class Benchmark:
                     f"\n[STAGE 3] Synthesizing RAG answer with LLM "
                     f"(base confidence: {confidence})..."
                 )
-                improved_answer, improved_confidence = (
-                    self.llm_improver.improve_answer(
-                        question["text"],
-                        result.answer,
-                        confidence,
-                        always_improve=True,
-                        rag_context=f"retrieved question: {top_match.question}",
-                    )
+                improved_answer, improved_confidence = self.llm_improver.improve_answer(
+                    question["text"],
+                    result.answer,
+                    confidence,
+                    always_improve=True,
+                    rag_context=f"retrieved question: {top_match.question}",
                 )
 
                 result.answer = improved_answer
@@ -355,7 +351,6 @@ class Benchmark:
                         score=improved_confidence,
                     )
                 )
-
 
             else:
                 logger.info("  [NO] No relevant Q&A found in RAG dataset")
@@ -475,7 +470,6 @@ class Benchmark:
         summary = {
             "benchmark_id": str(uuid.uuid4()),
             "timestamp": datetime.now(UTC).isoformat(),
-
             "total_questions": total,
             "results": [r.to_dict() for r in self.results],
             "summary": {

@@ -58,7 +58,7 @@ class OpenAILLMService(LLMService):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
+                f"{settings.llm_base_url.rstrip('/')}/chat/completions",
                 json=payload,
                 headers=headers,
                 timeout=30.0,
@@ -67,9 +67,7 @@ class OpenAILLMService(LLMService):
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
-    async def analyze_ticket(
-        self, ticket_content: str
-    ) -> dict[str, Any]:
+    async def analyze_ticket(self, ticket_content: str) -> dict[str, Any]:
         """Analyze support ticket content (READ-ONLY).
 
         Args:
@@ -99,9 +97,7 @@ class OpenAILLMService(LLMService):
                 "suggested_action": "manual_review",
             }
 
-    async def suggest_resolution(
-        self, ticket_id: uuid.UUID
-    ) -> str:
+    async def suggest_resolution(self, ticket_id: uuid.UUID) -> str:
         """Suggest resolution for a ticket (READ-ONLY).
 
         Args:
@@ -175,9 +171,7 @@ class AnthropicLLMService(LLMService):
             data = response.json()
             return data["content"][0]["text"]
 
-    async def analyze_ticket(
-        self, ticket_content: str
-    ) -> dict[str, Any]:
+    async def analyze_ticket(self, ticket_content: str) -> dict[str, Any]:
         """Analyze support ticket content (READ-ONLY).
 
         Args:
@@ -207,9 +201,7 @@ class AnthropicLLMService(LLMService):
                 "suggested_action": "manual_review",
             }
 
-    async def suggest_resolution(
-        self, ticket_id: uuid.UUID
-    ) -> str:
+    async def suggest_resolution(self, ticket_id: uuid.UUID) -> str:
         """Suggest resolution for a ticket (READ-ONLY).
 
         Args:
@@ -236,11 +228,9 @@ def get_llm_service() -> LLMService:
     Raises:
         ValueError: If LLM provider is not supported.
     """
-    if settings.llm_provider.lower() == "openai":
+    if settings.llm_provider.lower() in {"openai", "local", "openrouter"}:
         return OpenAILLMService()
     elif settings.llm_provider.lower() == "anthropic":
         return AnthropicLLMService()
     else:
-        raise ValueError(
-            f"Unsupported LLM provider: {settings.llm_provider}"
-        )
+        raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")

@@ -1,9 +1,9 @@
 """Processing phases and operation logging for clear bot behavior visualization."""
 
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Any, Optional
 from datetime import datetime
+from enum import Enum
+from typing import Any, Optional
 
 
 class ProcessingMode(Enum):
@@ -177,9 +177,7 @@ class ProcessingContext:
 
         # Processing mode and flow type
         if self.processing_mode:
-            lines.append(
-                f"Processing Mode: {self.processing_mode.value.upper()}"
-            )
+            lines.append(f"Processing Mode: {self.processing_mode.value.upper()}")
         if self.flow_type:
             lines.append(f"Flow Type: {self.flow_type.value.upper()}")
         if self.confidence:
@@ -196,7 +194,11 @@ class ProcessingContext:
         if self.phases:
             lines.append("\nProcessing Phases:")
             for log in self.phases:
-                status_icon = "✓" if log.status == "success" else "✗" if log.status == "failed" else "→"
+                status_icon = (
+                    "✓"
+                    if log.status == "success"
+                    else "✗" if log.status == "failed" else "→"
+                )
                 lines.append(f"  {status_icon} {log.phase.value}")
                 if log.details:
                     for key, val in log.details.items():
@@ -208,7 +210,11 @@ class ProcessingContext:
         if self.executed_tools:
             lines.append("\nExecuted Tools:")
             for i, tool in enumerate(self.executed_tools, 1):
-                status_icon = "✓" if tool.status == "success" else "✗" if tool.status == "failed" else "→"
+                status_icon = (
+                    "✓"
+                    if tool.status == "success"
+                    else "✗" if tool.status == "failed" else "→"
+                )
                 lines.append(f"  {status_icon} {tool.tool_name}")
                 if tool.status == "failed" and tool.error:
                     lines.append(f"      ERROR: {tool.error}")

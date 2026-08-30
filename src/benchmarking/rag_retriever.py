@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 
-from src.benchmarking.hybrid_retriever import HybridRetriever
+from src.services.processing.hybrid_retriever import HybridRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,7 @@ class RAGRetriever:
             dataset_path: Path to RAG dataset JSONL file.
         """
         # Initialize hybrid retriever with environment variables
-        llm_base_url = os.getenv(
-            "LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1"
-        )
+        llm_base_url = os.getenv("LLM_BASE_URL", "https://litellm.ai.nestle.ru/v1")
         llm_api_key = os.getenv("LLM_PROVIDER_KEY", "")
 
         self.hybrid_retriever = HybridRetriever(

@@ -1,10 +1,9 @@
 """LLM improver - enhances low-confidence answers using OpenAI API."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
-
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +95,6 @@ class LLMImprover:
                 temperature=0.7,
                 max_tokens=32768,
             )
-
 
             improved_answer = response.choices[0].message.content
 

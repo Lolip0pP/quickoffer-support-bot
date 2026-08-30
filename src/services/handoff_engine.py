@@ -48,7 +48,7 @@ class CollectedFact:
         return {
             "fact_type": self.fact_type,
             "source": self.source,
-            "value": value,
+            "value": self.value,
             "confidence": self.confidence,
             "timestamp": self.timestamp.isoformat(),
         }
@@ -130,6 +130,7 @@ class HandoffDetector:
 
         self.data_keywords = {
             "export data",
+            "export",
             "my information",
             "gdpr",
             "delete account",
@@ -161,9 +162,7 @@ class HandoffDetector:
 
         # Trigger 1: Explicit request for human
         if any(kw in message_lower for kw in self.explicit_keywords):
-            logger.info(
-                "Handoff triggered: explicit human request"
-            )
+            logger.info("Handoff triggered: explicit human request")
             return (
                 True,
                 HandoffTriggerType.EXPLICIT_REQUEST,
@@ -172,9 +171,7 @@ class HandoffDetector:
 
         # Trigger 2: Identity not verified
         if not context.get("identity_verified", True):
-            logger.info(
-                "Handoff triggered: identity not verified"
-            )
+            logger.info("Handoff triggered: identity not verified")
             return (
                 True,
                 HandoffTriggerType.IDENTITY_NOT_VERIFIED,
@@ -183,9 +180,7 @@ class HandoffDetector:
 
         # Trigger 3: Money, chargeback, or legal issues
         if any(kw in message_lower for kw in self.money_keywords):
-            logger.info(
-                "Handoff triggered: money/legal issue detected"
-            )
+            logger.info("Handoff triggered: money/legal issue detected")
             return (
                 True,
                 HandoffTriggerType.MONEY_LEGAL_ISSUE,
@@ -194,9 +189,7 @@ class HandoffDetector:
 
         # Trigger 4: Account takeover or security issues
         if any(kw in message_lower for kw in self.security_keywords):
-            logger.info(
-                "Handoff triggered: security issue detected"
-            )
+            logger.info("Handoff triggered: security issue detected")
             return (
                 True,
                 HandoffTriggerType.ACCOUNT_SECURITY,
@@ -205,9 +198,7 @@ class HandoffDetector:
 
         # Trigger 5: Data request or unknown policy
         if any(kw in message_lower for kw in self.data_keywords):
-            logger.info(
-                "Handoff triggered: data request detected"
-            )
+            logger.info("Handoff triggered: data request detected")
             return (
                 True,
                 HandoffTriggerType.DATA_REQUEST_UNKNOWN_POLICY,
@@ -250,9 +241,7 @@ class HandoffDetector:
             conversation_id: Conversation identifier.
         """
         key = f"tool_{conversation_id}"
-        self.tool_failure_counter[key] = (
-            self.tool_failure_counter.get(key, 0) + 1
-        )
+        self.tool_failure_counter[key] = self.tool_failure_counter.get(key, 0) + 1
         logger.debug(
             f"Tool failure recorded for {conversation_id}: "
             f"count={self.tool_failure_counter[key]}"
@@ -265,9 +254,7 @@ class HandoffDetector:
             conversation_id: Conversation identifier.
         """
         key = f"llm_{conversation_id}"
-        self.llm_failure_counter[key] = (
-            self.llm_failure_counter.get(key, 0) + 1
-        )
+        self.llm_failure_counter[key] = self.llm_failure_counter.get(key, 0) + 1
         logger.debug(
             f"LLM failure recorded for {conversation_id}: "
             f"count={self.llm_failure_counter[key]}"
@@ -294,9 +281,7 @@ class HandoffExecutor:
         self.settings = settings
         self.admin_chat_id = settings.telegram_approval_chat_id
 
-    async def execute_handoff(
-        self, context: HandoffContext
-    ) -> dict[str, Any]:
+    async def execute_handoff(self, context: HandoffContext) -> dict[str, Any]:
         """Execute handoff: create ticket and notify admins.
 
         Args:
@@ -396,9 +381,7 @@ class HandoffExecutor:
         if context.collected_facts:
             summary_parts.append("<b>Collected Facts:</b>")
             for fact in context.collected_facts[-5:]:  # Last 5 facts
-                summary_parts.append(
-                    f"  • [{fact.fact_type}] {fact.value}"
-                )
+                summary_parts.append(f"  • [{fact.fact_type}] {fact.value}")
             summary_parts.append("")
 
         if context.conversation_history:
@@ -409,18 +392,12 @@ class HandoffExecutor:
                 summary_parts.append(f"  {role}: {text}...")
             summary_parts.append("")
 
-        summary_parts.append(
-            f"<b>Confidence Score:</b> {context.confidence_score:.2f}"
-        )
-        summary_parts.append(
-            f"<b>Timestamp:</b> {datetime.utcnow().isoformat()}"
-        )
+        summary_parts.append(f"<b>Confidence Score:</b> {context.confidence_score:.2f}")
+        summary_parts.append(f"<b>Timestamp:</b> {datetime.utcnow().isoformat()}")
 
         return "\n".join(summary_parts)
 
-    async def _notify_admins(
-        self, summary: str, ticket_id: uuid.UUID
-    ) -> bool:
+    async def _notify_admins(self, summary: str, ticket_id: uuid.UUID) -> bool:
         """Notify admins via Telegram.
 
         Args:

@@ -12,7 +12,7 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src.benchmarking.faiss_cache import FAISSEmbeddingCache
+from src.services.processing.faiss_cache import FAISSEmbeddingCache
 
 logger = logging.getLogger(__name__)
 
@@ -342,22 +342,16 @@ class HybridRetriever:
                             loaded_count += 1
 
                             if loaded_count % 100 == 0:
-                                logger.debug(
-                                    f"Loaded {loaded_count} Q&A pairs..."
-                                )
+                                logger.debug(f"Loaded {loaded_count} Q&A pairs...")
 
                     except json.JSONDecodeError as e:
-                        logger.warning(
-                            f"Failed to parse JSON at line {line_num}: {e}"
-                        )
+                        logger.warning(f"Failed to parse JSON at line {line_num}: {e}")
                         continue
 
             # Initialize BM25
             if self.corpus:
                 self.bm25 = BM25Okapi(self.corpus)
-                logger.info(
-                    f"RAG dataset loaded: {loaded_count} Q&A pairs indexed"
-                )
+                logger.info(f"RAG dataset loaded: {loaded_count} Q&A pairs indexed")
 
                 # Pre-compute embeddings for all documents
                 logger.info("Computing embeddings for all documents...")
@@ -389,7 +383,9 @@ class HybridRetriever:
 
         # Count successful embeddings
         successful = sum(1 for e in self.document_embeddings if e is not None)
-        logger.info(f"Successfully computed {successful}/{len(self.document_texts)} embeddings")
+        logger.info(
+            f"Successfully computed {successful}/{len(self.document_texts)} embeddings"
+        )
 
         # Save to FAISS cache if enabled
         if self.use_faiss and successful > 0:
@@ -414,9 +410,7 @@ class HybridRetriever:
             self.query_embedding_cache[query] = embedding
         return embedding
 
-    async def _get_query_embedding_async(
-        self, query: str
-    ) -> Optional[np.ndarray]:
+    async def _get_query_embedding_async(self, query: str) -> Optional[np.ndarray]:
         """Get embedding for query with caching (async version).
 
         Args:
@@ -504,9 +498,7 @@ class HybridRetriever:
 
         return scores
 
-    async def retrieve(
-        self, query: str, top_k: int = 3
-    ) -> list[HybridRAGMatch]:
+    async def retrieve(self, query: str, top_k: int = 3) -> list[HybridRAGMatch]:
         """Retrieve relevant Q&A pairs using hybrid search (async).
 
         Args:
@@ -527,7 +519,9 @@ class HybridRetriever:
         # Get top-k from BM25 (fast filtering)
         top_indices = sorted(
             range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True
-        )[:top_k * 3]  # Get more results for semantic re-scoring
+        )[
+            : top_k * 3
+        ]  # Get more results for semantic re-scoring
 
         # STEP 2: Semantic scoring (async)
         query_embedding = await self._get_query_embedding_async(query)
@@ -563,9 +557,7 @@ class HybridRetriever:
         # STEP 4: Rerank if available (async)
         rerank_scores: dict[int, float] = {}
         if self.use_reranker:
-            candidate_docs = [
-                self.documents[idx]["question"] for idx in sorted_indices
-            ]
+            candidate_docs = [self.documents[idx]["question"] for idx in sorted_indices]
             rerank_result = await self.reranker_service.rerank(query, candidate_docs)
 
             if rerank_result:
