@@ -1,5 +1,6 @@
 """Interactive CLI demo - allows user to input questions and see bot responses."""
 
+import asyncio
 import logging
 import os
 import sys
@@ -42,7 +43,7 @@ class InteractiveDemo:
         llm_api_key = os.getenv("LLM_PROVIDER_KEY", "")
 
         self.hybrid_retriever = HybridRetriever(
-            dataset_path="docs/rag_dataset.jsonl",
+            dataset_path="docs/rag_dataset_train.jsonl",
             base_url=llm_base_url,
             api_key=llm_api_key,
             use_reranker=True,
@@ -54,8 +55,8 @@ class InteractiveDemo:
         print("[OK] All components initialized successfully")
         print("\nType 'exit' or 'quit' to leave the demo\n")
 
-    def process_question(self, question: str) -> dict:
-        """Process a question through the entire pipeline.
+    async def process_question(self, question: str) -> dict:
+        """Process a question through the entire pipeline (async).
 
         Args:
             question: User question text.
@@ -161,7 +162,7 @@ class InteractiveDemo:
             print("=" * 80)
             print("\nSearching in RAG dataset (Hybrid Search)...")
 
-            hybrid_matches = self.hybrid_retriever.retrieve(question, top_k=1)
+            hybrid_matches = await self.hybrid_retriever.retrieve(question, top_k=1)
 
             if hybrid_matches:
                 top_match = hybrid_matches[0]
@@ -194,9 +195,13 @@ class InteractiveDemo:
                     print(f"\nConfidence too low ({confidence:.2f})")
                     print("Attempting LLM improvement...")
 
-                    improved_answer, improved_confidence = (
+                    improved_answer, improved_confidence = await (
                         self.llm_improver.improve_answer(
-                            question, context.final_answer, confidence
+                            question,
+                            context.final_answer,
+                            confidence,
+                            always_improve=True,
+                            rag_context=f"retrieved question: {top_match.question}",
                         )
                     )
 
@@ -229,9 +234,11 @@ class InteractiveDemo:
                 print("=" * 80)
                 print("\nAttempting LLM fallback generation...")
 
-                fallback_answer, fallback_confidence = (
+                fallback_answer, fallback_confidence = await (
                     self.llm_improver.improve_answer(
-                        question, "No information found in knowledge base.", 0.0
+                        question,
+                        "No information found in knowledge base.",
+                        0.0,
                     )
                 )
 
@@ -292,36 +299,40 @@ class InteractiveDemo:
         print(f"Expected Tools: {len(context.expected_tools)}")
         print(f"Executed Tools: {len(context.executed_tools)}")
 
-    def run(self) -> None:
-        """Run the interactive demo loop."""
-        while True:
-            try:
-                question = input("\n[Enter your question]: ").strip()
+    async def run(self) -> None:
+        """Run the interactive demo loop (async)."""
+        try:
+            while True:
+                try:
+                    question = input("\n[Enter your question]: ").strip()
 
-                if question.lower() in ["exit", "quit", "q"]:
-                    print("\nGoodbye!")
+                    if question.lower() in ["exit", "quit", "q"]:
+                        print("\nGoodbye!")
+                        break
+
+                    if not question:
+                        print("Please enter a valid question.")
+                        continue
+
+                    result = await self.process_question(question)
+                    self.display_result(result)
+
+                except KeyboardInterrupt:
+                    print("\n\nGoodbye!")
                     break
-
-                if not question:
-                    print("Please enter a valid question.")
-                    continue
-
-                result = self.process_question(question)
-                self.display_result(result)
-
-            except KeyboardInterrupt:
-                print("\n\nGoodbye!")
-                break
-            except Exception as e:
-                print(f"\nError processing question: {e}")
-                logger.exception("Error in interactive demo")
+                except Exception as e:
+                    print(f"\nError processing question: {e}")
+                    logger.exception("Error in interactive demo")
+        finally:
+            # Clean up async resources
+            await self.hybrid_retriever.close()
 
 
-def main() -> None:
-    """Main entry point for interactive demo."""
+async def main() -> None:
+    """Main entry point for interactive demo (async)."""
     try:
         demo = InteractiveDemo()
-        demo.run()
+        await demo.run()
     except Exception as e:
         print(f"Failed to initialize demo: {e}")
         logger.exception("Failed to initialize demo")
@@ -329,4 +340,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

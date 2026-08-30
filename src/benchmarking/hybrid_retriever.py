@@ -1,5 +1,6 @@
 """Hybrid retriever - combines BM25 with semantic search and reranking."""
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ class HybridRAGMatch:
 
 
 class EmbeddingService:
-    """Service for getting embeddings via API."""
+    """Service for getting embeddings via API with async support."""
 
     def __init__(
         self,
@@ -50,9 +51,21 @@ class EmbeddingService:
         self.api_key = api_key
         self.model = model
         self.embedding_cache: dict[str, np.ndarray] = {}
+        self._client: Optional[httpx.AsyncClient] = None
 
-    def get_embedding(self, text: str) -> Optional[np.ndarray]:
-        """Get embedding for text, using cache when available.
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client (connection pooling)."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close async client."""
+        if self._client is not None:
+            await self._client.aclose()
+
+    def get_embedding_sync(self, text: str) -> Optional[np.ndarray]:
+        """Get embedding for text synchronously (for initialization).
 
         Args:
             text: Text to embed.
@@ -65,6 +78,8 @@ class EmbeddingService:
             return self.embedding_cache[text]
 
         try:
+            import httpx as httpx_module
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
@@ -72,7 +87,7 @@ class EmbeddingService:
 
             payload = {"model": self.model, "input": text}
 
-            with httpx.Client(verify=False) as client:
+            with httpx_module.Client(verify=False) as client:
                 response = client.post(
                     f"{self.base_url}/embeddings",
                     json=payload,
@@ -95,13 +110,59 @@ class EmbeddingService:
             return embedding
 
         except Exception as e:
-            logger.error(f"Error getting embedding: {e}")
+            logger.error(f"Error getting embedding (sync): {e}")
             return None
 
-    def batch_embeddings(
+    async def get_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Get embedding for text asynchronously.
+
+        Args:
+            text: Text to embed.
+
+        Returns:
+            Embedding vector or None if API call fails.
+        """
+        # Check cache first
+        if text in self.embedding_cache:
+            return self.embedding_cache[text]
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {"model": self.model, "input": text}
+
+            client = await self._get_client()
+            response = await client.post(
+                f"{self.base_url}/embeddings",
+                json=payload,
+                headers=headers,
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"Embedding API returned status {response.status_code}: "
+                    f"{response.text}"
+                )
+                return None
+
+            data = response.json()
+            embedding = np.array(data["data"][0]["embedding"])
+
+            # Cache the embedding
+            self.embedding_cache[text] = embedding
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Error getting embedding (async): {e}")
+            return None
+
+    async def batch_embeddings(
         self, texts: list[str]
     ) -> dict[str, Optional[np.ndarray]]:
-        """Get embeddings for multiple texts.
+        """Get embeddings for multiple texts concurrently.
 
         Args:
             texts: List of texts to embed.
@@ -109,14 +170,13 @@ class EmbeddingService:
         Returns:
             Dictionary mapping text to embedding or None.
         """
-        embeddings = {}
-        for text in texts:
-            embeddings[text] = self.get_embedding(text)
-        return embeddings
+        tasks = [self.get_embedding(text) for text in texts]
+        embeddings_list = await asyncio.gather(*tasks)
+        return dict(zip(texts, embeddings_list))
 
 
 class RerankerService:
-    """Service for reranking results via API."""
+    """Service for reranking results via API with async support."""
 
     def __init__(
         self,
@@ -134,8 +194,20 @@ class RerankerService:
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
+        self._client: Optional[httpx.AsyncClient] = None
 
-    def rerank(
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client (connection pooling)."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close async client."""
+        if self._client is not None:
+            await self._client.aclose()
+
+    async def rerank(
         self, query: str, documents: list[str]
     ) -> Optional[list[tuple[int, float]]]:
         """Rerank documents based on query relevance.
@@ -162,13 +234,12 @@ class RerankerService:
                 "documents": documents,
             }
 
-            with httpx.Client(verify=False) as client:
-                response = client.post(
-                    f"{self.base_url}/rerank",
-                    json=payload,
-                    headers=headers,
-                    timeout=30.0,
-                )
+            client = await self._get_client()
+            response = await client.post(
+                f"{self.base_url}/rerank",
+                json=payload,
+                headers=headers,
+            )
 
             if response.status_code != 200:
                 logger.warning(
@@ -298,7 +369,7 @@ class HybridRetriever:
             logger.error(f"Error loading RAG dataset: {e}")
 
     def _precompute_embeddings(self) -> None:
-        """Pre-compute and cache embeddings for all documents."""
+        """Pre-compute and cache embeddings for all documents (sync version for init)."""
         # Extract dataset name from path for FAISS caching
         dataset_name = self.dataset_path.stem
 
@@ -311,8 +382,9 @@ class HybridRetriever:
                 return
 
         # If not using FAISS or cache doesn't exist, compute embeddings
+        # Use sync version for initialization (called from __init__)
         for text in self.document_texts:
-            embedding = self.embedding_service.get_embedding(text)
+            embedding = self.embedding_service.get_embedding_sync(text)
             self.document_embeddings.append(embedding)
 
         # Count successful embeddings
@@ -326,7 +398,7 @@ class HybridRetriever:
                 logger.info("Saved embeddings to FAISS cache for future use")
 
     def _get_query_embedding(self, query: str) -> Optional[np.ndarray]:
-        """Get embedding for query with caching.
+        """Get embedding for query with caching (sync version).
 
         Args:
             query: Query text.
@@ -338,6 +410,25 @@ class HybridRetriever:
             return self.query_embedding_cache[query]
 
         embedding = self.embedding_service.get_embedding(query)
+        if embedding is not None:
+            self.query_embedding_cache[query] = embedding
+        return embedding
+
+    async def _get_query_embedding_async(
+        self, query: str
+    ) -> Optional[np.ndarray]:
+        """Get embedding for query with caching (async version).
+
+        Args:
+            query: Query text.
+
+        Returns:
+            Embedding vector or None.
+        """
+        if query in self.query_embedding_cache:
+            return self.query_embedding_cache[query]
+
+        embedding = await self.embedding_service.get_embedding(query)
         if embedding is not None:
             self.query_embedding_cache[query] = embedding
         return embedding
@@ -413,8 +504,10 @@ class HybridRetriever:
 
         return scores
 
-    def retrieve(self, query: str, top_k: int = 3) -> list[HybridRAGMatch]:
-        """Retrieve relevant Q&A pairs using hybrid search.
+    async def retrieve(
+        self, query: str, top_k: int = 3
+    ) -> list[HybridRAGMatch]:
+        """Retrieve relevant Q&A pairs using hybrid search (async).
 
         Args:
             query: User question/query.
@@ -436,8 +529,8 @@ class HybridRetriever:
             range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True
         )[:top_k * 3]  # Get more results for semantic re-scoring
 
-        # STEP 2: Semantic scoring
-        query_embedding = self._get_query_embedding(query)
+        # STEP 2: Semantic scoring (async)
+        query_embedding = await self._get_query_embedding_async(query)
         semantic_scores: dict[int, float] = {}
 
         if query_embedding is not None:
@@ -451,7 +544,6 @@ class HybridRetriever:
         else:
             logger.warning("Failed to get query embedding, using BM25 only")
             semantic_scores = {i: 0.0 for i in top_indices}
-
 
         # STEP 3: Combine scores (BM25 30% + Semantic 70%)
         combined_scores: dict[int, float] = {}
@@ -468,13 +560,13 @@ class HybridRetriever:
             reverse=True,
         )[:top_k]
 
-        # STEP 4: Rerank if available
+        # STEP 4: Rerank if available (async)
         rerank_scores: dict[int, float] = {}
         if self.use_reranker:
             candidate_docs = [
                 self.documents[idx]["question"] for idx in sorted_indices
             ]
-            rerank_result = self.reranker_service.rerank(query, candidate_docs)
+            rerank_result = await self.reranker_service.rerank(query, candidate_docs)
 
             if rerank_result:
                 # Map rerank indices back to document indices
@@ -525,3 +617,8 @@ class HybridRetriever:
             logger.info("Hybrid RAG retrieval: no relevant Q&A pairs found for query")
 
         return matches
+
+    async def close(self) -> None:
+        """Close async clients."""
+        await self.embedding_service.close()
+        await self.reranker_service.close()

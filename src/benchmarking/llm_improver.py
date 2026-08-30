@@ -46,7 +46,7 @@ class LLMImprover:
             logger.error(f"Error loading instructions: {e}")
             return ""
 
-    def improve_answer(
+    async def improve_answer(
         self,
         question: str,
         weak_answer: str,
@@ -55,7 +55,7 @@ class LLMImprover:
         rag_context: Optional[str] = None,
         source_type: str = "RAG/historical dialog",
     ) -> tuple[str, float]:
-        """Improve a weak answer using LLM.
+        """Improve a weak answer using LLM (async).
 
         Args:
             question: User question.
@@ -74,9 +74,9 @@ class LLMImprover:
 
         try:
             # Import here to avoid dependency issues if openai not installed
-            import openai
+            from openai import AsyncOpenAI
 
-            client = openai.OpenAI(api_key=self.api_key, base_url=self.api_base)
+            client = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
 
             # Build system prompt with instructions context
             system_prompt = self._build_system_prompt()
@@ -86,8 +86,8 @@ class LLMImprover:
                 question, weak_answer, confidence, rag_context, source_type
             )
 
-            # Call OpenAI API
-            response = client.chat.completions.create(
+            # Call OpenAI API (async)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
