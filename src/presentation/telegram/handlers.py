@@ -1,11 +1,26 @@
 """Telegram bot handlers using aiogram v3."""
 
+import logging
 from aiogram import Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from src.services.processing import QuestionProcessor
+
+logger = logging.getLogger(__name__)
+
 router = Router()
+processor: QuestionProcessor | None = None
+
+
+async def get_processor() -> QuestionProcessor:
+    """Get or initialize the QuestionProcessor."""
+    global processor
+    if processor is None:
+        processor = QuestionProcessor()
+        logger.info("QuestionProcessor initialized")
+    return processor
 
 
 class SupportFlowStates(StatesGroup):
@@ -162,13 +177,91 @@ async def cmd_cancel(message: types.Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(None))
-async def echo_handler(message: types.Message) -> None:
-    """Echo handler for messages without FSM state.
+async def handle_question(message: types.Message) -> None:
+    """Handle user questions and process them through the bot pipeline.
 
     Args:
         message: Telegram message.
     """
-    await message.answer(
-        "I didn't understand that. "
-        "Type /help for available commands."
-    )
+    if not message.text or message.text.startswith("/"):
+        await message.answer(
+            "I didn't understand that. Type /help for available commands."
+        )
+        return
+
+    try:
+        # Show processing indicator
+        await message.answer("🔄 Processing your request...")
+
+        # Get the question processor
+        proc = await get_processor()
+
+        # Process the question
+        result = await proc.process(message.text)
+
+        # Log the processing sequence to console
+        sequence = result.context.log_phase_sequence()
+        if sequence:
+            logger.info(f"\n{sequence}")
+
+        # Build response based on processing mode
+        mode = result.context.processing_mode.value.upper()
+
+        response_lines = [
+            f"<b>✨ Processing Complete</b>\n",
+            f"<b>Mode:</b> {mode}",
+        ]
+
+        # Add mode-specific info
+        if result.context.flow_type:
+            response_lines.append(f"<b>Flow:</b> {result.context.flow_type.value}")
+
+        if result.confidence_level:
+            response_lines.append(f"<b>Confidence:</b> {result.confidence_level}")
+
+        response_lines.append("")  # Blank line
+
+        # Add the answer
+        response_lines.append(f"<b>Answer:</b>\n{result.context.final_answer}")
+
+        # Add approval info for Mode A
+        if result.context.requires_staff_approval:
+            response_lines.append(
+                f"\n⚠️ <b>Staff Approval Required</b>"
+            )
+            if result.context.approval_token:
+                response_lines.append(
+                    f"<code>Token: {result.context.approval_token[:24]}...</code>"
+                )
+
+        # Add phase info (collapsed)
+        if result.context.phases:
+            response_lines.append(f"\n📊 <b>Phases ({len(result.context.phases)}):</b>")
+            for i, phase in enumerate(result.context.phases, 1):
+                status = "✅" if phase.status == "success" else "❌" if phase.status == "failed" else "⏳"
+                phase_name = phase.phase.value.replace("_", " ").title()
+                response_lines.append(f"  {i}. {status} {phase_name}")
+
+        response = "\n".join(response_lines)
+
+        # Split long responses
+        max_length = 4096
+        if len(response) > max_length:
+            # Send response in chunks
+            await message.answer(response[:max_length], parse_mode="HTML")
+            await message.answer(response[max_length:], parse_mode="HTML")
+        else:
+            await message.answer(response, parse_mode="HTML")
+
+        logger.info(
+            f"Question processed: mode={mode}, "
+            f"confidence={result.confidence_level}, "
+            f"requires_approval={result.context.requires_staff_approval}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing question: {e}", exc_info=True)
+        await message.answer(
+            f"❌ Error processing your request: {str(e)}\n\n"
+            f"Please try again or type /help for assistance."
+        )

@@ -30,6 +30,19 @@ class Settings(BaseSettings):
     reranker_base_url: str | None = None
     reranker_model: str = ""
 
+    # ZeroEntropy Configuration (alternative embedder/reranker)
+    zero_entropy_api_key: str = ""
+    zero_entropy_base_url: str = "https://api.zeroentropy.ai/v1"
+
+    # OpenRouter Configuration (alternative LLM provider)
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "openai/gpt-4-turbo"
+
+    # Provider Selection Mode
+    # Options: "litellm" (current), "zeroentropy_openrouter" (ZeroEntropy + OpenRouter)
+    provider_mode: str = "litellm"
+
     # Application Configuration
     log_level: str = "INFO"
     debug: bool = False

@@ -13,6 +13,7 @@ from rank_bm25 import BM25Okapi
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.services.processing.faiss_cache import FAISSEmbeddingCache
+from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,186 @@ class HybridRAGMatch:
     rerank_score: float
     combined_score: float
     original_qa_pair: dict[str, str]
+
+
+class ZeroEntropyEmbeddingService:
+    """Service for getting embeddings via ZeroEntropy API."""
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://api.zeroentropy.ai/v1",
+        model: str = "e5-large",
+    ):
+        """Initialize ZeroEntropy embedding service.
+
+        Args:
+            api_key: ZeroEntropy API key.
+            base_url: Base URL for ZeroEntropy API.
+            model: Model name for embeddings.
+        """
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+        self.embedding_cache: dict[str, np.ndarray] = {}
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close async client."""
+        if self._client is not None:
+            await self._client.aclose()
+
+    async def get_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Get embedding for text asynchronously.
+
+        Args:
+            text: Text to embed.
+
+        Returns:
+            Embedding vector or None if API call fails.
+        """
+        if text in self.embedding_cache:
+            return self.embedding_cache[text]
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {"model": self.model, "input": text}
+
+            client = await self._get_client()
+            response = await client.post(
+                f"{self.base_url}/embeddings",
+                json=payload,
+                headers=headers,
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"ZeroEntropy API returned status {response.status_code}: "
+                    f"{response.text}"
+                )
+                return None
+
+            data = response.json()
+            embedding = np.array(data["data"][0]["embedding"])
+
+            self.embedding_cache[text] = embedding
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Error getting embedding from ZeroEntropy: {e}")
+            return None
+
+    async def batch_embeddings(
+        self, texts: list[str]
+    ) -> dict[str, Optional[np.ndarray]]:
+        """Get embeddings for multiple texts concurrently.
+
+        Args:
+            texts: List of texts to embed.
+
+        Returns:
+            Dictionary mapping text to embedding or None.
+        """
+        tasks = [self.get_embedding(text) for text in texts]
+        embeddings_list = await asyncio.gather(*tasks)
+        return dict(zip(texts, embeddings_list))
+
+
+class ZeroEntropyRerankerService:
+    """Service for reranking results via ZeroEntropy API."""
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://api.zeroentropy.ai/v1",
+        model: str = "bge-reranker-large",
+    ):
+        """Initialize ZeroEntropy reranker service.
+
+        Args:
+            api_key: ZeroEntropy API key.
+            base_url: Base URL for ZeroEntropy API.
+            model: Model name for reranking.
+        """
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model = model
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(verify=False, timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close async client."""
+        if self._client is not None:
+            await self._client.aclose()
+
+    async def rerank(
+        self, query: str, documents: list[str]
+    ) -> Optional[list[tuple[int, float]]]:
+        """Rerank documents based on query relevance.
+
+        Args:
+            query: Query text.
+            documents: List of document texts to rerank.
+
+        Returns:
+            List of (index, score) tuples sorted by score, or None if API fails.
+        """
+        if not documents:
+            return None
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "model": self.model,
+                "query": query,
+                "documents": documents,
+            }
+
+            client = await self._get_client()
+            response = await client.post(
+                f"{self.base_url}/rerank",
+                json=payload,
+                headers=headers,
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"ZeroEntropy Reranker API returned status {response.status_code}: "
+                    f"{response.text}"
+                )
+                return None
+
+            data = response.json()
+            results = []
+
+            for result in data["results"]:
+                results.append((result["index"], float(result["relevance_score"])))
+
+            results.sort(key=lambda x: x[1], reverse=True)
+            return results
+
+        except Exception as e:
+            logger.error(f"Error reranking documents with ZeroEntropy: {e}")
+            return None
 
 
 class EmbeddingService:
@@ -296,13 +477,39 @@ class HybridRetriever:
         self.bm25: Optional[BM25Okapi] = None
         self.query_embedding_cache: dict[str, np.ndarray] = {}
 
-        # Initialize services
-        self.embedding_service = EmbeddingService(
-            base_url=base_url, api_key=api_key, model=embedding_model
-        )
-        self.reranker_service = RerankerService(
-            base_url=base_url, api_key=api_key, model=reranker_model
-        )
+        # Initialize services based on provider mode
+        if settings.provider_mode.lower() == "zeroentropy_openrouter":
+            if not settings.zero_entropy_api_key:
+                logger.warning(
+                    "ZeroEntropy API key not configured, falling back to LiteLLM"
+                )
+                self.embedding_service = EmbeddingService(
+                    base_url=base_url, api_key=api_key, model=embedding_model
+                )
+                self.reranker_service = RerankerService(
+                    base_url=base_url, api_key=api_key, model=reranker_model
+                )
+            else:
+                logger.info("Using ZeroEntropy for embeddings and reranking")
+                self.embedding_service = ZeroEntropyEmbeddingService(
+                    api_key=settings.zero_entropy_api_key,
+                    base_url=settings.zero_entropy_base_url,
+                    model=embedding_model,
+                )
+                self.reranker_service = ZeroEntropyRerankerService(
+                    api_key=settings.zero_entropy_api_key,
+                    base_url=settings.zero_entropy_base_url,
+                    model=reranker_model,
+                )
+        else:
+            logger.info("Using LiteLLM for embeddings and reranking")
+            self.embedding_service = EmbeddingService(
+                base_url=base_url, api_key=api_key, model=embedding_model
+            )
+            self.reranker_service = RerankerService(
+                base_url=base_url, api_key=api_key, model=reranker_model
+            )
+        
         self.use_reranker = use_reranker
         self.use_faiss = use_faiss
 

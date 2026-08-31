@@ -231,4 +231,33 @@ class ProcessingContext:
             if self.handoff_reason:
                 lines.append(f"Reason: {self.handoff_reason}")
 
+
+    def log_phase_sequence(self) -> str:
+        """Log the processing phase sequence for console output.
+        
+        Returns:
+            Formatted string showing the sequence of processing phases.
+        """
+        if not self.phases:
+            return ""
+        
+        lines = ["═" * 60, "📊 PROCESSING SEQUENCE"]
+        
+        for i, log in enumerate(self.phases, 1):
+            status_icon = (
+                "✅"
+                if log.status == "success"
+                else "❌" if log.status == "failed"
+                else "⏳" if log.status == "pending" else "⏸️"
+            )
+            phase_name = log.phase.value.replace("_", " ").title()
+            lines.append(f"{i}. {status_icon} {phase_name}")
+            
+            if log.details:
+                for key, val in log.details.items():
+                    lines.append(f"   └─ {key}: {val}")
+        
+        lines.append("═" * 60)
+        return "\n".join(lines)
+
         return "\n".join(lines)

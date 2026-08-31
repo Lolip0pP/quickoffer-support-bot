@@ -219,6 +219,117 @@ class AnthropicLLMService(LLMService):
         return await self.generate_response(suggestion_prompt)
 
 
+class OpenRouterLLMService(LLMService):
+    """OpenRouter LLM service (READ-ONLY)."""
+
+    def __init__(self) -> None:
+        """Initialize OpenRouter LLM service."""
+        self.api_key = settings.openrouter_api_key
+        self.model = settings.openrouter_model
+        self.provider = "openrouter"
+        self.base_url = settings.openrouter_base_url
+
+    async def generate_response(
+        self, prompt: str, context: dict[str, Any] | None = None
+    ) -> str:
+        """Generate LLM response via OpenRouter (READ-ONLY).
+
+        This is a read-only operation that does not modify any state.
+
+        Args:
+            prompt: User prompt.
+            context: Optional context for response generation.
+
+        Returns:
+            str: Generated response.
+        """
+        import httpx
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://quickoffer.ru",
+            "X-Title": "QuickOffer Support Bot",
+        }
+
+        system_prompt = (
+            "You are a QuickOffer support bot assistant (MODE B: LLM Investigation). "
+            "You are read-only: analyze questions and provide suggestions only. "
+            "Never execute actions, mutations, or access production data. "
+            "For high-risk operations (refund, job archival, crypto), defer to staff approval."
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 4096,
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+
+    async def analyze_ticket(self, ticket_content: str) -> dict[str, Any]:
+        """Analyze support ticket content (READ-ONLY).
+
+        Args:
+            ticket_content: Support ticket content.
+
+        Returns:
+            dict: Analysis result with severity, category, etc.
+        """
+        analysis_prompt = (
+            f"Analyze this support ticket and provide a JSON response "
+            f"with fields: severity (low|medium|high), "
+            f"category (technical|billing|account|other), "
+            f"suggested_action (escalate|auto_resolve|manual_review). "
+            f"Ticket: {ticket_content}"
+        )
+
+        response_text = await self.generate_response(analysis_prompt)
+
+        import json
+
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            return {
+                "severity": "medium",
+                "category": "other",
+                "suggested_action": "manual_review",
+            }
+
+    async def suggest_resolution(self, ticket_id: uuid.UUID) -> str:
+        """Suggest resolution for a ticket (READ-ONLY).
+
+        Args:
+            ticket_id: Support ticket identifier.
+
+        Returns:
+            str: Suggested resolution text.
+        """
+        suggestion_prompt = (
+            f"Provide a helpful suggestion for resolving "
+            f"support ticket {ticket_id}. "
+            f"Focus on common solutions and best practices."
+        )
+
+        return await self.generate_response(suggestion_prompt)
+
+
 def get_llm_service() -> LLMService:
     """Factory function to get configured LLM service.
 
@@ -228,7 +339,13 @@ def get_llm_service() -> LLMService:
     Raises:
         ValueError: If LLM provider is not supported.
     """
-    if settings.llm_provider.lower() in {"openai", "local", "openrouter"}:
+    provider_mode = settings.provider_mode.lower()
+    
+    if provider_mode == "zeroentropy_openrouter":
+        if not settings.openrouter_api_key:
+            raise ValueError("openrouter_api_key is required for zeroentropy_openrouter mode")
+        return OpenRouterLLMService()
+    elif settings.llm_provider.lower() in {"openai", "local", "openrouter"}:
         return OpenAILLMService()
     elif settings.llm_provider.lower() == "anthropic":
         return AnthropicLLMService()

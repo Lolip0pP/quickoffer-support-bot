@@ -5,6 +5,7 @@
 2. **Deterministic Flows (Mode A)**: Handled via state machines with strict Pydantic validation. High-risk mutations require approval tokens.
 3. **M2M Operations**: All backend state changes go through typed HTTP/gRPC clients to internal APIs (`fuckhr-api`, `jobs-api`) with mandatory `Idempotency-Key` and `Trace-ID` headers.
 4. **Data Frozen Snapshots**: All action approvals must hash parameters (`action_id`, `staff_id`, `payload_hash`). Any modification invalidates approval.
+5. **Markdown files**: Do not make extra Markdown-files without necessity.
 
 ## Tech Stack Guidelines
 - **Language**: Python 3.12+ (asyncio throughout).

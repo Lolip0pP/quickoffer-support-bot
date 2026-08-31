@@ -39,23 +39,31 @@ async def set_bot_commands(bot: Bot) -> None:
 async def main() -> None:
     """Main entry point for the bot."""
     logger.info("=" * 60)
-    logger.info("QuickOffer Support Bot - Demo Mode")
+    logger.info("QuickOffer Support Bot - Telegram Edition")
     logger.info("=" * 60)
 
     # Log configuration
+    logger.info("🔧 Configuration:")
     if settings.use_mocks:
-        logger.info("✅ Running in MOCK MODE (USE_MOCKS=true)")
-        logger.info("   - FuckHR API: Mock client")
-        logger.info("   - Jobs API: Mock client")
-        logger.info("   - Database: SQLite (local)")
+        logger.info("   ✅ USE_MOCKS=true (Mock API clients)")
     else:
-        logger.info("⚠️  Running in PRODUCTION MODE")
-        logger.info(f"   - FuckHR API: {settings.fuckhr_api_base_url}")
-        logger.info(f"   - Jobs API: {settings.jobs_api_base_url}")
-        logger.info(f"   - Database: {settings.database_url}")
+        logger.info(f"   ℹ️  USE_MOCKS=false (Real API clients)")
 
-    logger.info(f"Bot Token: {settings.telegram_bot_token[:10]}***")
-    logger.info(f"Approval Chat ID: {settings.telegram_approval_chat_id}")
+    logger.info(f"   LLM Provider: {settings.llm_provider}")
+    logger.info(f"   Provider Mode: {settings.provider_mode}")
+
+    if settings.provider_mode.lower() == "zeroentropy_openrouter":
+        logger.info("   📊 Using ZeroEntropy (embeddings/reranking) + OpenRouter (LLM)")
+        if settings.zero_entropy_api_key:
+            logger.info("   ✅ ZeroEntropy API Key configured")
+        else:
+            logger.warning("   ⚠️  ZeroEntropy API Key NOT configured, will fall back to LiteLLM")
+    else:
+        logger.info("   📊 Using LiteLLM for all services")
+
+    logger.info(f"   Bot Token: {settings.telegram_bot_token[:10]}***")
+    logger.info(f"   Approval Chat ID: {settings.telegram_approval_chat_id}")
+    logger.info(f"   Log Level: {settings.log_level}")
     logger.info("=" * 60)
 
     # Initialize database
@@ -97,15 +105,17 @@ async def main() -> None:
         logger.error(f"❌ Failed to start bot: {e}")
         sys.exit(1)
     finally:
+        logger.info("Closing bot session...")
         await bot.session.close()
+        logger.info("Bot shutdown complete")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+        logger.info("\n🛑 Bot stopped by user")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.error(f"❌ Fatal error: {e}")
         sys.exit(1)
